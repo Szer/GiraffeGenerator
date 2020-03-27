@@ -28,9 +28,9 @@ It's still in VERY early stage of development, so only VERY basic features are b
 
 ## How it works internally
 
-- It parses OpenAPI spec with package `Microsoft.OpenApi.Readers` in intermediate representation (IR)
+- It parses OpenAPI spec with package `Microsoft.OpenApi.Readers` to intermediate representation (IR)
 - Then it creates F# AST based on that IR
-- Finally it produces source code file from that F# AST with `Fantomas`
+- Finally it produces source code file with help of `Fantomas`
 
 ## How to build
 
