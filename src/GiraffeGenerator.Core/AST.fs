@@ -155,22 +155,29 @@ let seqExpr expr1 expr2 =
 
 /// Sequential expression for expression list (used in CE)
 /// [ e1; e2; e3; e4] -> Seq(e1, Seq(e2, Seq(e3, e4)))
-/// Will throw exception on expression list's size less than 3
+/// Will throw exception on expression list's size less than 2
+/// Empty ident added to the end to enforce indentation
 let rec seqExprs exprs =
     match exprs with
     | []
     | [ _ ] -> failwith "imbosibru"
-    | [ e1; e2 ] -> seqExpr e1 e2
+    | [ e1; e2 ] -> seqExpr e1 (seqExpr e2 emptyIdent)
     | e :: exprs -> seqExpr e (seqExprs exprs)
 
 /// CE expression for expression list using Sequential
 let ceExprList exprs =
     SynExpr.CompExpr(true, ref true, seqExprs exprs, r)
     
-/// Expression for Giraffe choose function with list of expressions inside (no less than 3)
+/// Expression for application of next and ctx to expr
+/// {expr} next ctx
+let appNextCtx expr =
+    app (app expr (identExpr "next")) (identExpr "ctx")
+
+/// Expression for Giraffe choose function with list of expressions inside
+/// Will throw exception on expression list's size less than 2
 /// choose [ {exprList} ]
 let chooseExpr exprList =
-    app (app (app (identExpr "choose") (arrayExpr (ceExprList exprList))) (identExpr "next")) (identExpr "ctx")
+    app (identExpr "choose") (arrayExpr (ceExprList exprList))
 
 /// Infix application expression for Giraffe Kleisli composition operator >=>
 /// {e1} >=> {e2}
@@ -183,9 +190,6 @@ let strExpr str = SynExpr.Const(SynConst.String(str, r), r)
 /// route {route}
 let route route =
     app (identExpr "route") (strExpr route)
-
-/// Expression for Giraffe GET handler
-let GET = identExpr "GET"
 
 /// Expression for calling methods from service:
 /// service.{name}

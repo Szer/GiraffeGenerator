@@ -7,27 +7,48 @@ open FSharp.Compiler.Ast
 
 let inline (^) f x = f x
 
+/// helper function to create partial Giraffe flow:
+/// {method.Method} >=> service.{method.Name}
+let createMethod (method: PathMethodCall) =
+    method.Method.ToUpperInvariant() |> identExpr >=> service method.Name
+
 /// helper function to create Giraffe flows:
-/// route {path.Route} >=> {path.Method} >=> service.{path.Name}
-let createRoute path =
-    route path.Route >=> (path.Method.ToUpper() |> identExpr) >=> service path.Name
+/// route {path.Route} >=> {method.Method} >=> service.{method.Name}
+/// or
+/// route {path.Route} >=> choose [
+///     {method1.Method} >=> service.{method1.Name}
+///     {method2.Method} >=> service.{method2.Name}
+/// ]
+let createRoute (path: ParsedPath) =
+    let methods = 
+        if path.Methods.Length > 1 then
+            chooseExpr [ for method in path.Methods -> createMethod method ]
+        else
+            createMethod path.Methods.[0]
+    route path.Route >=> methods
+
 
 /// Creating whole module AST for Giraffe webapp
-let giraffeAst name paths =
-    moduleDecl name
+let giraffeAst (api: Api) =
+    moduleDecl api.Name
         [ openDecl "FSharp.Control.Tasks.V2.ContextInsensitive"
           openDecl "Giraffe"
 
           let abstractMembers =
-              paths |> List.map (fun x -> abstractHttpHandler x.Name)
+              [ for path in api.Paths do
+                    for method in path.Methods do
+                        yield abstractHttpHandler method.Name ]
           typeDecl "Service" abstractMembers
 
-          let routes =
-              paths |> List.map createRoute
+          let routes = api.Paths |> List.map createRoute
+              
+          let routesExpr =
+              if routes.Length > 1 then
+                  chooseExpr routes
+              else
+                  routes.[0]
 
-          letHttpHandlerDecl "webApp" ^ taskBuilder ^ letGetServiceDecl ^ returnBang ^ chooseExpr
-                                                                                           [ yield! routes
-                                                                                             emptyIdent ] ]
+          letHttpHandlerDecl "webApp" ^ taskBuilder ^ letGetServiceDecl ^ returnBang ^ appNextCtx routesExpr ]
 
 /// Creating source code string from provided AST using default Fantomas settings
 let sourceCode ast =
