@@ -6,7 +6,7 @@ I believe in "contract-first" approach, and your OpenAPI spec is basically contr
 
 Backend code is just an implementation of this contract and client doesn't really want to know about it
 
-Neither should you, so this library should help you with that
+Neither should you, so this library will help you with that
 
 It follows [Myriad](https://github.com/MoiraeSoftware/myriad) approach and defines MSBuild target to generate code based on input
 
