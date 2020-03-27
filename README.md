@@ -5,28 +5,28 @@ I believe in "contract-first" approach, and your OpenAPI spec is basically contr
 Backend code is just an implementation of this contract and client doesn't really want to know about it
 Neither should you, so this library should help you with that
 
-It follows (Myriad)[https://github.com/MoiraeSoftware/myriad] approach and defines MSBuild target to generate code based on input
+It follows [Myriad](https://github.com/MoiraeSoftware/myriad) approach and defines MSBuild target to generate code based on input
 It's still in VERY early stage of development, only VERY basic features are supported
 
 ## How to use
 
-1. Add nugets:
+- Add nugets:
     - `GiraffeGenerator.Core`
     - `GiraffeGenerator.Sdk`
-1. Create OpenAPI spec file
-1. Add generated file to your project file:
+- Create OpenAPI spec file
+- Add generated file to your project file:
 ```
     <Compile Include="Generated.fs">
       <OpenApiSpecFile>spec.yaml</OpenApiSpecFile>
     </Compile>
 ```
-1. Implement interface defined in this file and register your implementation in AspNetCore DI
+- Implement interface defined in this file and register your implementation in AspNetCore DI
 
-## How it works
+## How it works internally
 
-1. Parse OpenAPI spec with package `Microsoft.OpenApi.Readers` in intermediate representation (IR)
-1. Create F# AST based on that IR
-1. Create source code file from that F# AST with `Fantomas`
+- It parses OpenAPI spec with package `Microsoft.OpenApi.Readers` in intermediate representation (IR)
+- Then it creates F# AST based on that IR
+- Finally it produces source code file from that F# AST with `Fantomas`
 
 ## How to build
 
