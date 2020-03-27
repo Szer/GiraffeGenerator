@@ -1,0 +1,29 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="SimpleSpec.fs">
+      <OpenApiSpecFile>specs/simpleSpec.yaml</OpenApiSpecFile>
+    </Compile>
+    <None Include="NuGet.Config" />
+    <Compile Include="SimpleSpecTests.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Giraffe" Version="4.0.1" />
+    <PackageReference Include="GiraffeGenerator.Core" Version="1.0.0" />
+    <PackageReference Include="GiraffeGenerator.Sdk" Version="1.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="3.1.3" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.5.0" />
+    <PackageReference Include="Xunit" Version="2.4.1" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.4.1">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>

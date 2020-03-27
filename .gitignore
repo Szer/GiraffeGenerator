@@ -262,3 +262,6 @@ FakesAssemblies/
 
 # Common IntelliJ Platform excludes
 .idea/**
+
+# Generated file in integration test folder
+/tests/GiraffeGenerator.IntegrationTests/SimpleSpec.fs
