@@ -20,20 +20,23 @@ jobs:
       uses: actions/setup-dotnet@v1
       with:
         dotnet-version: 3.1.101
-    - name: Install dependencies
-      run: dotnet restore
+    - name: Install local tools
+      run: dotnet tool restore
     
     - name: Dotnet Pack SDK
-      run: dotnet pack src/GiraffeGenerator.Sdk -c Release -o bin/nupkg --no-restore
+      run: dotnet pack src/GiraffeGenerator.Sdk -c Release -o bin/nupkg
       
     - name: Dotnet Pack Tool
-      run: dotnet pack src/GiraffeGenerator -c Release -o bin/nupkg --no-restore
+      run: dotnet pack src/GiraffeGenerator -c Release -o bin/nupkg
     
     - name: Dotnet Merge Nugets
       run: dotnet mergenupkg --source bin/nupkg/GiraffeGenerator.Sdk.1.0.0.nupkg --other bin/nupkg/GiraffeGenerator.1.0.0.nupkg --tools --only-files
     
     - name: Dotnet Pack Core
-      run: dotnet pack src/GiraffeGenerator.Core -c Release -o bin/nupkg --no-restore
+      run: dotnet pack src/GiraffeGenerator.Core -c Release -o bin/nupkg
+      
+    - name: Dotnet build Example project
+      run: dotnet src/Example -c Release
       
     - name: Run Integration Tests
       run: dotnet test -c Release --no-restore
