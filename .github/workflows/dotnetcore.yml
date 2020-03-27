@@ -36,7 +36,7 @@ jobs:
       run: dotnet pack src/GiraffeGenerator.Core -c Release -o bin/nupkg
       
     - name: Dotnet build Example project
-      run: dotnet src/Example -c Release
+      run: dotnet build src/Example -c Release
       
     - name: Run Integration Tests
       run: dotnet test -c Release --no-restore
