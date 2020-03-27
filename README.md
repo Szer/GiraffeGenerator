@@ -12,6 +12,14 @@ It follows [Myriad](https://github.com/MoiraeSoftware/myriad) approach and defin
 
 It's still in VERY early stage of development, so only VERY basic features are being supported.
 
+## Future feature list (basically TODO list):
+
+- Creating models from OpenAPI schemas
+- Creating endpoints with path/query/body bindings
+- Add XML comments on top of endpoint from OpenAPI descriptions
+- Support authentication (best efforts)
+- Support JSON/XML (de-)serialization
+
 ## How to use
 
 - Add nugets:
@@ -39,6 +47,7 @@ It's still in VERY early stage of development, so only VERY basic features are b
 1. Run it!
 
 At this stage there is no NuGet package publishing and packages are being published locally
+
 To consume them in `Example` project there is local `NuGet.Config` with local repo added
 
 After first full `build&pack` you could delete `Generated.fs` file from `Example` project and build it again to see that it actually generates it on build
