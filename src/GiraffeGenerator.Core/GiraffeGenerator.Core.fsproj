@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="AST.fs" />
+    <Compile Include="OpenApi.fs" />
+    <Compile Include="CodeGen.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="build\GiraffeGenerator.Core.props">
+      <Pack>true</Pack>
+      <PackagePath>%(Identity)</PackagePath>
+      <Visible>true</Visible>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Fantomas" Version="3.3.0" />
+    <PackageReference Include="FSharp.Compiler.Service" Version="34.1.1" />
+    <PackageReference Include="Microsoft.OpenApi.Readers" Version="1.1.4" />
+  </ItemGroup>
+
+</Project>

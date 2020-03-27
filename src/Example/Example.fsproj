@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="NuGet.Config" />
+    <Compile Include="Generated.fs">
+      <OpenApiSpecFile>spec.yaml</OpenApiSpecFile>
+    </Compile>
+    <Content Include="spec.yaml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Giraffe" Version="4.0.1" />
+    <PackageReference Include="GiraffeGenerator.Core" Version="1.0.0" />
+    <PackageReference Include="GiraffeGenerator.Sdk" Version="1.0.0" />
+  </ItemGroup>
+
+</Project>

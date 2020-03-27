@@ -1,0 +1,5 @@
+<Project>
+    <ItemGroup>
+        <GiraffeGeneratorSdkGenerator Include="$(MSBuildThisFileDirectory)/../lib/netstandard2.0/GiraffeGenerator.Core.dll" />
+    </ItemGroup>
+</Project>

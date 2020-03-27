@@ -1,0 +1,31 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
+    <PackProjectInputFile>$(MSBuildProjectFullPath)</PackProjectInputFile>
+    <NoBuild>true</NoBuild>
+    <PackageId>GiraffeGenerator.Sdk</PackageId>
+    <Description>MSBuild integration between GiraffeGenerator and .NET Sdk projects</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="build\GiraffeGenerator.Sdk.props">
+      <Pack>true</Pack>
+      <PackagePath>%(Identity)</PackagePath>
+      <Visible>true</Visible>
+    </Content>
+    <Content Include="build\GiraffeGenerator.Sdk.targets">
+      <Pack>true</Pack>
+      <PackagePath>%(Identity)</PackagePath>
+      <Visible>true</Visible>
+    </Content>
+    <Content Include="buildMultiTargeting\GiraffeGenerator.Sdk.targets">
+      <Pack>true</Pack>
+      <PackagePath>%(Identity)</PackagePath>
+      <Visible>true</Visible>
+    </Content>
+  </ItemGroup>
+
+</Project>

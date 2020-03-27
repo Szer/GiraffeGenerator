@@ -1,0 +1,68 @@
+<Project>
+
+    <!-- Input to the code generator should not include its output. -->
+    <Target Name="_GiraffeGeneratorSdkFilesList" BeforeTargets="GiraffeGeneratorSdkGenerateInputCache">
+        <ItemGroup>
+            <GiraffeGeneratorSource Include="%(Compile.OpenApiSpecFile)" Condition=" '%(Compile.OpenApiSpecFile)' != '' ">
+                <OutputPath>$([System.IO.Path]::GetFullPath('%(Compile.FullPath)'))</OutputPath>
+            </GiraffeGeneratorSource>
+        </ItemGroup>
+
+        <ItemGroup>
+            <GiraffeGeneratorCodegen Include="%(GiraffeGeneratorSource.FullPath)">
+                <OutputPath Condition=" '%(GiraffeGeneratorSource.OutputPath)' != '' ">$([System.IO.Path]::GetFullPath('%(GiraffeGeneratorSource.OutputPath)'))</OutputPath>
+                <OutputPath Condition=" '%(GiraffeGeneratorSource.OutputPath)' == '' ">%(GiraffeGeneratorSource.FullPath).fs</OutputPath>
+            </GiraffeGeneratorCodegen>
+        </ItemGroup>
+
+        <PropertyGroup>
+            <_GiraffeGeneratorSdkCodeGenInputCache>$(IntermediateOutputPath)$(MSBuildProjectFile).GiraffeGeneratorSdkCodeGenInputs.cache</_GiraffeGeneratorSdkCodeGenInputCache>
+        </PropertyGroup>
+    </Target>
+
+    <!--
+    Update the file which captures the total set of all inputs to the code generator.
+    This is based on the _GenerateCompileDependencyCache target from the .NET project system. -->
+    <Target Name="GiraffeGeneratorSdkGenerateInputCache" DependsOnTargets="ResolveAssemblyReferences;_GiraffeGeneratorSdkFilesList" BeforeTargets="GiraffeGeneratorSdkGenerateCode">
+
+        <ItemGroup>
+            <GiraffeGeneratorSdk_CodeGenInputs Include="@(GiraffeGeneratorCodegen);@(ReferencePath);$(GiraffeGeneratorSdk_Generator_Exe)" />
+        </ItemGroup>
+
+        <Hash ItemsToHash="@(GiraffeGeneratorSdk_CodeGenInputs)">
+            <Output TaskParameter="HashResult" PropertyName="GiraffeGeneratorSdk_UpdatedInputCacheContents" />
+        </Hash>
+
+        <WriteLinesToFile Overwrite="true" File="$(_GiraffeGeneratorSdkCodeGenInputCache)" Lines="$(GiraffeGeneratorSdk_UpdatedInputCacheContents)" WriteOnlyWhenDifferent="True" />
+
+    </Target>
+
+    <PropertyGroup>
+        <GiraffeGeneratorSdkGenerateCodeDependsOn>$(GiraffeGeneratorSdkGenerateCodeDependsOn);ResolveReferences;GiraffeGeneratorSdkGenerateInputCache</GiraffeGeneratorSdkGenerateCodeDependsOn>
+    </PropertyGroup>
+
+    <Target Name="GiraffeGeneratorSdkGenerateCode"
+            DependsOnTargets="$(GiraffeGeneratorSdkGenerateCodeDependsOn)"
+            BeforeTargets="CoreCompile"
+            Condition=" '$(DesignTimeBuild)' != 'true' "
+            Inputs="@(GiraffeGeneratorCodegen);$(_GiraffeGeneratorSdkCodeGenInputCache);$(GiraffeGeneratorSdk_Generator_Exe)"
+            Outputs="%(GiraffeGeneratorCodegen.OutputPath)">
+
+        <PropertyGroup>
+            <_GiraffeGeneratorSdk_InputFileName>%(GiraffeGeneratorCodegen.Identity)</_GiraffeGeneratorSdk_InputFileName>
+            <_GiraffeGeneratorSdk_OutputFileName>%(GiraffeGeneratorCodegen.OutputPath)</_GiraffeGeneratorSdk_OutputFileName>
+        </PropertyGroup>
+
+        <ItemGroup>
+            <GiraffeGeneratorSdk_Args Include='--inputfile "$(_GiraffeGeneratorSdk_InputFileName)"' />
+            <GiraffeGeneratorSdk_Args Include='--outputfile "$(_GiraffeGeneratorSdk_OutputFileName)"' />
+        </ItemGroup>
+
+        <!-- Use dotnet to execute the process. -->
+        <Exec Command="$(GiraffeGeneratorSdk_Generator_ExeHost)&quot;$(GiraffeGeneratorSdk_Generator_Exe)&quot; @(GiraffeGeneratorSdk_Args -> '%(Identity)', ' ')" />
+    </Target>
+
+    <Target Name="GiraffeGeneratorSdkIncludeCodegenOutputDuringDesignTimeBuild" BeforeTargets="CoreCompile" Condition=" '$(DesignTimeBuild)' == 'true' ">
+    </Target>
+
+</Project>
