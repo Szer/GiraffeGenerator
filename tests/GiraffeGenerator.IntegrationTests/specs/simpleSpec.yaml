@@ -1,0 +1,12 @@
+openapi: "3.0.0"
+info:
+  title: Simple Spec API
+paths:
+  /:
+    get:
+      operationId: listVersionsv2
+  /v2:
+    get:
+      operationId: getVersionDetailsv2
+    post:
+      operationId: postVersionDetailsv2

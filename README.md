@@ -41,7 +41,7 @@ It's still in VERY early stage of development, so only VERY basic features are b
 - Then it creates F# AST based on that IR
 - Finally it produces source code file with help of `Fantomas`
 
-## How to build
+## How to build and test
 
 1. Give executables right to `./build.sh`
 1. Run it!
