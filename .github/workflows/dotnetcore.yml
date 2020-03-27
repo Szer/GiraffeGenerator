@@ -1,0 +1,36 @@
+name: .NET Core
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+  
+    runs-on: [windows-latest, ubuntu-latest, macos-latest]
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Setup .NET Core
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: 3.1.101
+    - name: Install dependencies
+      run: dotnet restore
+    
+    - name: Dotnet Pack SDK
+      run: dotnet pack src/GiraffeGenerator.Sdk -c Release -o bin/nupkg --no-restore
+      
+    - name: Dotnet Pack Tool
+      run: dotnet pack src/GiraffeGenerator -c Release -o bin/nupkg --no-restore
+    
+    - name: Dotnet Merge Nugets
+      run: dotnet mergenupkg --source bin/nupkg/GiraffeGenerator.Sdk.1.0.0.nupkg --other bin/nupkg/GiraffeGenerator.1.0.0.nupkg --tools --only-files
+    
+    - name: Dotnet Pack Core
+      run: dotnet pack src/GiraffeGenerator.Core -c Release -o bin/nupkg --no-restore
+      
+    - name: Run Integration Tests
+      run: dotnet test -c Release --no-restore
