@@ -1,12 +1,16 @@
 # Giraffe Generator
 
 This is first naive version of Giraffe server generator from OpenAPI specification
+
 I believe in "contract-first" approach, and your OpenAPI spec is basically contract for your API
+
 Backend code is just an implementation of this contract and client doesn't really want to know about it
+
 Neither should you, so this library should help you with that
 
 It follows [Myriad](https://github.com/MoiraeSoftware/myriad) approach and defines MSBuild target to generate code based on input
-It's still in VERY early stage of development, only VERY basic features are supported
+
+It's still in VERY early stage of development, so only VERY basic features are being supported.
 
 ## How to use
 
