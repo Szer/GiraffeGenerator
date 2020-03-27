@@ -24,6 +24,7 @@ It's still in VERY early stage of development, so only VERY basic features are b
       <OpenApiSpecFile>spec.yaml</OpenApiSpecFile>
     </Compile>
 ```
+- Build project to generate the file
 - Implement interface defined in this file and register your implementation in AspNetCore DI
 
 ## How it works internally
