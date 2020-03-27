@@ -1,5 +1,6 @@
 # Giraffe Generator
-![.NET Core](https://github.com/Szer/GiraffeGenerator/workflows/.NET%20Core/badge.svg?branch=master)
+[![.NET Core CI](https://github.com/Szer/GiraffeGenerator/workflows/.NET%20Core/badge.svg?branch=master)](https://github.com/Szer/GiraffeGenerator/actions?query=workflow%3A%22.NET+Core%22)
+
 
 This is first naive version of Giraffe server generator from OpenAPI specification
 
