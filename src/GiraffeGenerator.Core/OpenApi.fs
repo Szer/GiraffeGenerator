@@ -4,11 +4,18 @@ open Microsoft.OpenApi.Models
 open Microsoft.OpenApi.Readers
 open System.IO
 
+type PathMethodCall =
+    { Method: string
+      Name: string }
+
 /// Our naive representation of OpenApi
 type ParsedPath =
     { Route: string
-      Method: string
-      Name: string }
+      Methods: PathMethodCall list }
+    
+type Api =
+    { Name: string
+      Paths: ParsedPath list }
         
 let reader = OpenApiStringReader()
 
@@ -20,19 +27,17 @@ let read file =
     
 /// Parse OpenApi document into our representation of it
 /// Returning API name and list of ParsedPaths
-let parse (doc: OpenApiDocument) =
+let parse (doc: OpenApiDocument): Api =
     let title = doc.Info.Title.Replace(" ", "")
     
-    let routes = 
-        doc.Paths
-        |> Seq.collect(fun (KeyValue(route, path)) ->
-            path.Operations
-            |> Seq.map(fun (KeyValue(method, op)) ->
-                { Route = route
-                  Method = method.ToString().ToUpperInvariant()
-                  Name = op.OperationId }
-                )
-            )
-        |> Seq.toList
-    
-    title, routes
+    let paths =
+        [ for KeyValue(route, path) in doc.Paths do
+            let methods =
+                [ for KeyValue(method, op) in path.Operations do
+                    yield { Method = string method
+                            Name = op.OperationId } ]
+            yield { Route = route
+                    Methods = methods } ]
+
+    { Name = title
+      Paths = paths }

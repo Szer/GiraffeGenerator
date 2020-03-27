@@ -19,10 +19,10 @@ let main argv =
     let outputFile = getArg argv "--outputfile"
     
     let doc,_ = read inputFile
-    let name, routes = parse doc
+    let api = parse doc
     
     let resultSource =
-        giraffeAst name routes
+        giraffeAst api
         |> sourceCode
     File.WriteAllText(outputFile, resultSource)
     
