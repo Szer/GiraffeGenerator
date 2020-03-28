@@ -8,5 +8,43 @@ paths:
   /v2:
     get:
       operationId: getVersionDetailsv2
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dataSetList'
     post:
       operationId: postVersionDetailsv2
+components:
+  schemas:
+    dataSetList:
+      type: object
+      properties:
+        total:
+          type: integer
+        apis:
+          type: array
+          items:
+            type: object
+            properties:
+              apiKey:
+                type: string
+              apiVersionNumber:
+                type: string
+              apiUrl:
+                type: string
+                format: uriref
+              apiCount:
+                type: integer
+                format: int64
+              apiAvg:
+                type: number
+              isInternal:
+                type: boolean
+              start:
+                type: string
+                format: date
+              apiHash:
+                type: string
+                format: byte

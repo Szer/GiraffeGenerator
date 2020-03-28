@@ -13,7 +13,7 @@
         <RepositoryUrl>https://github.com/Szer/GiraffeGenerator.git</RepositoryUrl>
         <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
         <Copyright>Ayrat Hudagyulov</Copyright>
-        <PackageReleaseNotes>see $(PackageProjectUrl)blob/master/CHANGELOG.md#$(VersionPrefix)</PackageReleaseNotes>
+        <PackageReleaseNotes>see $(PackageProjectUrl)blob/master/CHANGELOG.md#$(Version)</PackageReleaseNotes>
     </PropertyGroup>
 
 </Project>
