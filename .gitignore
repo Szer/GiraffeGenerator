@@ -265,6 +265,3 @@ FakesAssemblies/
 
 # Generated file in integration test folder
 /tests/GiraffeGenerator.IntegrationTests/SimpleSpec.fs
-
-# publish script
-publish.ps1
