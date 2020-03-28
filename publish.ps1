@@ -83,3 +83,6 @@ git push --follow-tags
 $apikey = Get-ChildItem Env:GIRAFFE_GENERATOR_NUGET
 dotnet nuget push "bin/nupkg/GiraffeGenerator.Core.$version.nupkg" --api-key $apikey.Value -s https://api.nuget.org/v3/index.json
 dotnet nuget push "bin/nupkg/GiraffeGenerator.Sdk.$version.nupkg" --api-key $apikey.Value -s https://api.nuget.org/v3/index.json
+
+dotnet nuget push "bin/nupkg/GiraffeGenerator.Core.$version.nupkg" --source "github"
+dotnet nuget push "bin/nupkg/GiraffeGenerator.Sdk.$version.nupkg" --source "github"
