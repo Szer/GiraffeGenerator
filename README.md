@@ -24,9 +24,7 @@ It's still in VERY early stage of development, so only VERY basic features are b
 
 ## How to use
 
-- Add nugets:
-    - `GiraffeGenerator.Core`
-    - `GiraffeGenerator.Sdk`
+- Add nuget `GiraffeGenerator.Sdk`
 - Create OpenAPI spec file
 - Add generated file to your project file:
 ```
