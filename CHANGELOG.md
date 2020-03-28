@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.0.0] - 2020-03-27
+## [0.0.1] - 2020-03-28
 ### Added
 - Initial release
+
+[Unreleased]: https://github.com/Szer/GiraffeGenerator/compare/v0.0.1...master
+[0.0.1]: https://github.com/Szer/GiraffeGenerator/compare/191a97b...v0.0.1

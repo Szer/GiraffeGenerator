@@ -24,9 +24,7 @@ It's still in VERY early stage of development, so only VERY basic features are b
 
 ## How to use
 
-- Add nugets:
-    - `GiraffeGenerator.Core`
-    - `GiraffeGenerator.Sdk`
+- Add nuget `GiraffeGenerator.Sdk`
 - Create OpenAPI spec file
 - Add generated file to your project file:
 ```
@@ -45,11 +43,11 @@ It's still in VERY early stage of development, so only VERY basic features are b
 
 ## How to build and test
 
-1. Give executables right to `./build.sh`
-1. Run it!
+1. Restore tools: `dotnet tool restore`
+1. `dotnet pwsh build.ps1`
 
 At this stage there is no NuGet package publishing and packages are being published locally
 
 To consume them in `Example` project there is local `NuGet.Config` with local repo added
 
-After first full `build&pack` you could delete `Generated.fs` file from `Example` project and build it again to see that it actually generates it on build
+After first full `build&pack` you could delete `Generated.fs` file from `Example` project and build it again to see that it actually generates on build

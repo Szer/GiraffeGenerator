@@ -16,6 +16,14 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+        
+    - name: Extract version
+      shell: pwsh
+      run: |
+        $matches = Select-String -path Directory.build.props '<Version>(\d+\.\d+\.\d+)</Version>'
+        $version = $matches.Matches[0].Groups[1].Value
+        Write-Host "::set-env name=VERSION::$version"
+
     - name: Setup .NET Core
       uses: actions/setup-dotnet@v1
       with:
@@ -24,16 +32,16 @@ jobs:
       run: dotnet tool restore
     
     - name: Dotnet Pack SDK
-      run: dotnet pack src/GiraffeGenerator.Sdk -c Release -o bin/nupkg
+      run: dotnet pack src/GiraffeGenerator.Sdk -c Release -o bin/nupkg /p:Version=${{ env.VERSION }}
       
     - name: Dotnet Pack Tool
-      run: dotnet pack src/GiraffeGenerator -c Release -o bin/nupkg
+      run: dotnet pack src/GiraffeGenerator -c Release -o bin/nupkg /p:Version=${{ env.VERSION }}
     
     - name: Dotnet Merge Nugets
-      run: dotnet mergenupkg --source bin/nupkg/GiraffeGenerator.Sdk.1.0.0.nupkg --other bin/nupkg/GiraffeGenerator.1.0.0.nupkg --tools --only-files
+      run: dotnet mergenupkg --source bin/nupkg/GiraffeGenerator.Sdk.${{ env.VERSION }}.nupkg --other bin/nupkg/GiraffeGenerator.${{ env.VERSION }}.nupkg --tools --only-files
     
     - name: Dotnet Pack Core
-      run: dotnet pack src/GiraffeGenerator.Core -c Release -o bin/nupkg
+      run: dotnet pack src/GiraffeGenerator.Core -c Release -o bin/nupkg /p:Version=${{ env.VERSION }}
       
     - name: Dotnet build Example project
       run: dotnet build src/Example -c Release
