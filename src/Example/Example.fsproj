@@ -14,8 +14,7 @@
 
   <ItemGroup>
     <PackageReference Include="Giraffe" Version="4.0.1" />
-    <PackageReference Include="GiraffeGenerator.Core" Version='$(Version)' />
-    <PackageReference Include="GiraffeGenerator.Sdk" Version='$(Version)' />
+    <PackageReference Include="GiraffeGenerator.Sdk" Version="$(Version)" PrivateAssets="all" />
   </ItemGroup>
 
 </Project>
