@@ -8,6 +8,7 @@
     <NoBuild>true</NoBuild>
     <PackageId>GiraffeGenerator.Sdk</PackageId>
     <Description>MSBuild integration between GiraffeGenerator and .NET Sdk projects</Description>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
   </PropertyGroup>
 
   <ItemGroup>
