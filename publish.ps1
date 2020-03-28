@@ -12,8 +12,8 @@ git stash push CHANGELOG.md
 
 #fetch tags and hard reset current master to origin master
 git fetch --all --tags
-git checkout nuget-publish # TODO change to master
-git reset --hard origin/nuget-publish # TODO change to master
+git checkout master
+git reset --hard origin/master
 git clean -xfd
 
 #unstash dir.build.props and changelog
