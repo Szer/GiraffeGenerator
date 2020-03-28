@@ -18,7 +18,7 @@ jobs:
     - uses: actions/checkout@v2
         
     - name: Install pcregrep on Ubuntu
-      if: ${{ matrix.os }} == 'ubuntu-latest'
+      if: startsWith(matrix.os,'ubuntu')
       run: sudo apt-get install pcregrep
         
     - name: Extract version
