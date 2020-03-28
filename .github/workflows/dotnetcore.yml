@@ -17,15 +17,13 @@ jobs:
     steps:
     - uses: actions/checkout@v2
         
-    - name: Install pcregrep on Ubuntu
-      if: startsWith(matrix.os,'ubuntu')
-      run: sudo apt-get install pcregrep
-        
     - name: Extract version
+      shell: pwsh
       run: |
-        export V=$(pcregrep -o1 '(\d+\.\d+\.\d+)' Directory.build.props)
-        echo "::set-env name=VERSION::$V"
-        
+        $matches = Select-String -path Directory.build.props '<Version>(\d+\.\d+\.\d+)</Version>'
+        $version = $matches.Matches[0].Groups[1].Value
+        Write-Host "::set-env name=VERSION::$version"
+
     - name: Setup .NET Core
       uses: actions/setup-dotnet@v1
       with:
