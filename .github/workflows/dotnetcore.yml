@@ -17,6 +17,10 @@ jobs:
     steps:
     - uses: actions/checkout@v2
         
+    - name: Install pcregrep on Ubuntu
+      if: ${{ matrix.os }} == 'ubuntu-latest'
+      run: sudo apt-get install pcregrep
+        
     - name: Extract version
       run: |
         export V=$(pcregrep -o1 '(\d+\.\d+\.\d+)' Directory.build.props)
