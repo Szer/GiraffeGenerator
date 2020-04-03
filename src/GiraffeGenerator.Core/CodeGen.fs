@@ -98,7 +98,9 @@ let giraffeAst (api: Api) =
         [ openDecl "FSharp.Control.Tasks.V2.ContextInsensitive"
           openDecl "Giraffe"
 
-          types (extractRecords api.Schemas)    
+          let records = extractRecords api.Schemas
+          if not records.IsEmpty then
+              types records
               
           typeObjectDecl "Service"
               [ for path in api.Paths do

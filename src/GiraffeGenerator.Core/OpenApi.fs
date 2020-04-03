@@ -26,7 +26,6 @@ type StringFormat =
         | "date" -> DateString
         | "date-time" -> DateTimeString
         | "password" -> PasswordString
-
         | x -> Custom x
         
 /// All primitive type kinds for a fields in type definitions
@@ -65,13 +64,13 @@ and TypeDefinition =
       Nullable: bool
       Kind: TypeKind }
     static member Parse(name, schema: OpenApiSchema) =
-        
+
         let kind =
             match trimLower schema.Type with
             | "array" ->
-                let innerType = TypeDefinition.Parse (name, schema.Items)
+                let innerType = TypeDefinition.Parse(name, schema.Items)
                 Array innerType
-                
+
             | "object" ->
                 let fields =
                     schema.Properties
@@ -79,11 +78,11 @@ and TypeDefinition =
                         TypeDefinition.Parse(typeName, internalSchema))
                     |> Seq.toList
                 Object fields
-                
+
             | primType ->
                 let primType = PrimTypeKind.Parse(primType, schema.Format)
                 Prim primType
-                
+
         { Name = name
           Nullable = schema.Nullable
           Kind = kind }
@@ -98,26 +97,25 @@ type PathMethodCall =
 type ParsedPath =
     { Route: string
       Methods: PathMethodCall list }
-    
+
 /// Representation of a whole spec
 type Api =
     { Name: string
       Paths: ParsedPath list
       Schemas: TypeDefinition list }
-        
+
 let reader = OpenApiStringReader()
 
 /// read openApiSpec by filePath
 /// returning tuple with parsed document and diagnostic errors
 let read file =
-    File.ReadAllText file
-    |> reader.Read
-    
+    File.ReadAllText file |> reader.Read
+
 /// Parse OpenApi document into our representation of it
 /// Returning API name and list of ParsedPaths
 let parse (doc: OpenApiDocument): Api =
     let title = doc.Info.Title.Replace(" ", "")
-    
+
     let paths =
         [ for KeyValue(route, path) in doc.Paths do
             let methods =
@@ -126,11 +124,12 @@ let parse (doc: OpenApiDocument): Api =
                             Name = op.OperationId } ]
             yield { Route = route
                     Methods = methods } ]
-    
+
     let schemas =
-        [ for KeyValue(typeName, schema) in doc.Components.Schemas ->
-            TypeDefinition.Parse(typeName, schema) ]
-    
+        [ if not (isNull doc.Components) then
+            for KeyValue(typeName, schema) in doc.Components.Schemas ->
+                TypeDefinition.Parse(typeName, schema) ]
+
     { Name = title
       Paths = paths
       Schemas = schemas }
