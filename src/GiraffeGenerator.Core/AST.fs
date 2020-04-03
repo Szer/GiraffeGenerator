@@ -63,14 +63,14 @@ let abstractHttpHandler name: SynMemberDefn =
 
 
 /// Type declaration with provided type name and members
-let typeDecl name members =
+let typeObjectDecl name members =
     let componentInfo = SynComponentInfo.ComponentInfo([], [], [], longIdent name, PreXmlDoc.Empty, false, None, r)
     let objModel = SynTypeDefnRepr.ObjectModel(SynTypeDefnKind.TyconUnspecified, members, r)
     SynModuleDecl.Types([ TypeDefn(componentInfo, objModel, [], r) ], r)
 
 /// Let declaration for Giraffe HttpHandler with specified name and body expression
 /// E.g.:
-/// let {NAME}: HttpHandler = fun next ctx -> {EXPR} 
+/// let {NAME}: HttpHandler = fun next ctx -> {EXPR}
 let letHttpHandlerDecl name expr =
     SynModuleDecl.Let
         (false,
@@ -102,7 +102,7 @@ let getServiceCall =
          SynExpr.TypeApp
              (SynExpr.LongIdent(false, longIdentWithDots "ctx.GetService", None, r), r,
               [ SynType.LongIdent(longIdentWithDots "Service") ], [], None, r, r), unitExpr, r)
-        
+
 /// Let expression with continuation for calling:
 /// let service = ctx.GetService<Service>() in {NEXT}
 let letGetServiceDecl next =
@@ -194,3 +194,42 @@ let route route =
 /// Expression for calling methods from service:
 /// service.{name}
 let service name = longIdentExpr ("service." + name)
+
+/// Expression for record with fields
+let record name fieldList =
+    TypeDefn
+        (SynComponentInfo.ComponentInfo([], [], [], longIdent name, PreXmlDoc.Empty, false, None, r),
+         SynTypeDefnRepr.Simple(SynTypeDefnSimpleRepr.Record(None, fieldList, r), r), [], r)
+
+/// Expression for type
+let synType name =
+    SynType.LongIdent(longIdentWithDots name)
+
+/// Expression for generic array type in postfix notation:
+/// {synType} array
+let arrayOf synType =
+    SynType.App(SynType.LongIdent(longIdentWithDots "array"), None, [ synType ], [], None, true, r)
+
+/// Expression for generic option type in postfix notation:
+/// {synType} option
+let optionOf synType =
+    SynType.App(SynType.LongIdent(longIdentWithDots "option"), None, [ synType ], [], None, true, r)
+
+// Primitive type expressions
+let boolType = synType "bool"
+let intType = synType "int"
+let int64Type = synType "int64"
+let doubleType = synType "double"
+let stringType = synType "string"
+let byteType = synType "byte"
+let dateType = synType "System.DateTimeOffset"
+let guidType = synType "System.Guid"
+let uriType = synType "System.Uri"
+
+/// Expression for field in records
+/// {name}: {fieldType}
+let field name fieldType =
+    SynField.Field([], false, Some(ident name), fieldType, false, PreXmlDoc.Empty, None, r)
+
+/// Module type declarations
+let types typeDefinitions = SynModuleDecl.Types(typeDefinitions, r)

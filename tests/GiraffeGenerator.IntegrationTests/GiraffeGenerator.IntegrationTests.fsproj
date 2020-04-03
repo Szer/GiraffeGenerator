@@ -6,11 +6,15 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="SimpleSpec.fs">
-      <OpenApiSpecFile>specs/simpleSpec.yaml</OpenApiSpecFile>
+    <Compile Include="SpecSimple.fs">
+      <OpenApiSpecFile>specs/specSimple.yaml</OpenApiSpecFile>
+    </Compile>
+    <Compile Include="SpecWithSchemas.fs">
+      <OpenApiSpecFile>specs/specWithSchemas.yaml</OpenApiSpecFile>
     </Compile>
     <None Include="NuGet.Config" />
-    <Compile Include="SimpleSpecTests.fs" />
+    <Compile Include="SpecSimpleTests.fs" />
+    <Compile Include="SpecWithSchemasTests.fs" />
   </ItemGroup>
 
   <ItemGroup>

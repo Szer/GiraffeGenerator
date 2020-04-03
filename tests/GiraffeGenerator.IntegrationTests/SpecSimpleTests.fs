@@ -11,21 +11,21 @@ open Microsoft.Extensions.DependencyInjection
 open Microsoft.Extensions.Logging
 open Xunit
 
-type SimpleSpecTests() =
+type SpecSimpleTests() =
     
     let simpleSpecService =
-        { new SimpleSpecAPI.Service with
+        { new SpecSimpleAPI.Service with
             member _.listVersionsv2 = text "123"
             member _.getVersionDetailsv2 = text "234"
             member _.postVersionDetailsv2 = text "345" }
         
     let configureApp (app : IApplicationBuilder) =
-        app.UseGiraffe SimpleSpecAPI.webApp
+        app.UseGiraffe SpecSimpleAPI.webApp
 
     let configureServices (services : IServiceCollection) =
         services
             .AddGiraffe()
-            .AddSingleton<SimpleSpecAPI.Service>(simpleSpecService)
+            .AddSingleton<SpecSimpleAPI.Service>(simpleSpecService)
         |> ignore
 
     let configureLogging (loggerBuilder : ILoggingBuilder) =
