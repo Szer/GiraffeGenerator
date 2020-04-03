@@ -17,13 +17,13 @@ It's still in VERY early stage of development, so only VERY basic features are b
 ## Future feature list (basically TODO list):
 
 - Creating models from OpenAPI schemas
- - [x] records generated from schema definitions with all data types from spec
- - [ ] handlers in generated webApp should support these types
- - [ ] `oneOf` support
- - [ ] `anyOf` support
- - [ ] `allOf` support
- - [ ] `discriminator` support
- - [x] `not` *won't be supported*
+   - [x] records generated from schema definitions with all data types from spec
+   - [ ] handlers in generated webApp should support these types
+   - [ ] `oneOf` support
+   - [ ] `anyOf` support
+   - [ ] `allOf` support
+   - [ ] `discriminator` support
+   - [x] `not` *won't be supported*
 - Multiple responses from one endpoint
 - Creating endpoints with path/query/body bindings
 - Add XML comments on top of endpoint from OpenAPI descriptions
