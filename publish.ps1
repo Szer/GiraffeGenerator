@@ -1,3 +1,9 @@
+# protection from accident runs
+$rndNumber = Get-Random -Maximum 999 -Minimum 100
+Write-Host "Please enter number $rndNumber to continue: "
+$inputNumber = Read-Host
+if ($inputNumber -ne $rndNumber) { exit }
+
 #read new version from dir.build.props
 $matches = Select-String -path Directory.build.props '<Version>(\d+)\.(\d+)\.(\d+)</Version>'
 $major = $matches.Matches[0].Groups[1].Value
