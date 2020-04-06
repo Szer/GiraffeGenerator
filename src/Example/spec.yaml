@@ -1,39 +1,85 @@
 openapi: "3.0.0"
 info:
   title: Simple API overview
+  description: This is very simple API
   version: 2.0.0
 paths:
   /:
     get:
       operationId: listVersionsv2
+      summary: List API versions
+      description: This is very cool API
       responses:
         '200':
+          description: |-
+            200 response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/dataSetList'
         '300':
+          description: A simple response
           content:
             application/json:
-              schema:
-                type: string
+              examples:
+                foo:
+                  value:
+                    {
+                      "versions": [
+                      {
+                        "status": "CURRENT",
+                        "updated": "2011-01-21T11:33:21Z",
+                        "id": "v2.0",
+                        "links": [
+                        {
+                          "href": "http://127.0.0.1:8774/v2/",
+                          "rel": "self"
+                        }
+                        ]
+                      },
+                      {
+                        "status": "EXPERIMENTAL",
+                        "updated": "2013-07-23T11:33:21Z",
+                        "id": "v3.0",
+                        "links": [
+                        {
+                          "href": "http://127.0.0.1:8774/v3/",
+                          "rel": "self"
+                        }
+                        ]
+                      }
+                      ]
+                    }
   /v2:
     get:
       operationId: getVersionDetailsv2
+      summary: List API version details
+      description: This is even cooler API
       responses:
         '200':
+          description: A complex response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/dataSetList'
+                description: subscription information
+                required:
+                  - subscriptionId
+                properties:
+                  subscriptionId:
+                    description: this unique identifier allows management of the subscription
+                    type: string
+                    example: 2531329f-fb09-4ef7-887e-84e648214436
         '203':
+          description: A super complex response
           content:
             application/json:
               schema:
+                description: subscription information
                 type: boolean
 components:
   schemas:
     dataSetList:
+      description: This is data set list
       type: object
       properties:
         total:
@@ -42,6 +88,7 @@ components:
           type: array
           items:
             type: object
+            description: This is apis
             properties:
               apiKey:
                 type: string

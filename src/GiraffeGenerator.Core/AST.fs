@@ -1,12 +1,16 @@
 module AST
 
 open FSharp.Compiler.Ast
+open FSharp.Compiler.Range
 
 /// Zero range. Used pretty much everywhere
 let r = FSharp.Compiler.Range.range0
 
 /// Range with one line space for indentation (used in list comprehensions)
 let r1 = FSharp.Compiler.Range.rangeN "" 1
+
+/// Empty XmlDocs
+let xmlEmpty = PreXmlDoc.Empty
 
 /// expression for ()
 let unitExpr = SynExpr.Const(SynConst.Unit, r)
@@ -65,7 +69,7 @@ let curriedArgs argList =
 
 /// Module declaration with splitting incoming string by '.'
 /// and with [<RequireQualifiedAccess>] attribute
-let moduleDecl name decls =
+let moduleDecl xml name decls =
     let moduleName = longIdent name
 
     let attrib =
@@ -77,15 +81,15 @@ let moduleDecl name decls =
                     AppliesToGetterAndSetter = false } ]
             Range = r } ]
     SynModuleOrNamespace.SynModuleOrNamespace
-        (moduleName, false, SynModuleOrNamespaceKind.NamedModule, decls, PreXmlDoc.Empty, attrib, None, r)
+        (moduleName, false, SynModuleOrNamespaceKind.NamedModule, decls, xml, attrib, None, r)
 
 
 /// Abstract member declaration
-let abstractDfn memberKind valDfn name synType: SynMemberDefn =
+let abstractDfn xmlDocs memberKind valDfn name synType: SynMemberDefn =
     SynMemberDefn.AbstractSlot
         (SynValSig.ValSpfn
             ([], ident name, SynValTyparDecls.SynValTyparDecls([], true, []), synType, valDfn, false, false,
-             PreXmlDoc.Empty, None, None, r),
+             xmlDocs, None, None, r),
          { IsInstance = true
            IsDispatchSlot = true
            IsOverrideOrExplicitImpl = false
@@ -94,12 +98,12 @@ let abstractDfn memberKind valDfn name synType: SynMemberDefn =
 
 /// Abstract method member declaration
 /// abstract {name}: {synType}
-let abstractMemberDfn name synType = abstractDfn MemberKind.Member emptyMethodVal name synType
+let abstractMemberDfn name synType = abstractDfn xmlEmpty MemberKind.Member emptyMethodVal name synType
 
 /// Abstract member declaration returning HttpHandler
 /// abstract {name}: HttpHandler
-let abstractHttpHandler name: SynMemberDefn =
-    abstractDfn MemberKind.PropertyGet propertyVal name (synType "HttpHandler")
+let abstractHttpHandler docs name: SynMemberDefn =
+    abstractDfn docs MemberKind.PropertyGet propertyVal name (synType "HttpHandler")
 
 /// Expression for implementing any member kind in class
 let implDefn memberKind isOverride name args expr =
@@ -270,11 +274,14 @@ let route route =
 let service name = longIdentExpr ("service." + name)
 
 /// Expression for record with fields
-let record name fieldList =
+let record xml name fieldList =
     TypeDefn
-        (SynComponentInfo.ComponentInfo([], [], [], longIdent name, PreXmlDoc.Empty, false, None, r),
+        (SynComponentInfo.ComponentInfo([], [], [], longIdent name, xml, false, None, r),
          SynTypeDefnRepr.Simple(SynTypeDefnSimpleRepr.Record(None, fieldList, r), r), [], r)
 
+/// Expression for anonymous record with fields
+let anonRecord fieldList =
+    SynType.AnonRecd(false, fieldList, r)
 
 /// Expression for generic type
 let genericType isPostfix name synTypes = 
@@ -309,6 +316,7 @@ let inline (^->) a b = funType a b
 
 // Primitive type expressions
 let unitType = synType "unit"
+let objType = synType "obj"
 let boolType = synType "bool"
 let intType = synType "int"
 let int64Type = synType "int64"
@@ -326,3 +334,16 @@ let field name fieldType =
 
 /// Module type declarations
 let types typeDefinitions = SynModuleDecl.Types(typeDefinitions, r)
+
+/// Creating PreXmlDocs from line list
+let xmlDocs lines =
+    let lines = List.collect id lines
+    if List.isEmpty lines then PreXmlDoc.Empty else
+    let collector = XmlDocCollector()
+    let i =
+        List.fold(fun i line ->
+            collector.AddXmlDocLine(line, mkPos i 0)
+            i+1
+        ) 0 lines
+    PreXmlDoc.PreXmlDoc(mkPos i 0, collector)
+    

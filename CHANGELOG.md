@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Record generation from schemas
 - Added lock files for nuget restore
 - Multiple responses for one path now supported
+- Added support for XML docs generation
 
 ## [0.1.0] - 2020-03-28
 ### Added
