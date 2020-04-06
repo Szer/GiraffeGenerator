@@ -48,64 +48,70 @@ let primTypeMatch = function
     | Bool -> boolType
     | String strFormat -> strFormatMatch strFormat
 
-/// extract record definitions from
-let extractRecords (schemas: TypeDefinition list) =
-    // store namd and fields of records here
-    let typesDict = Dictionary<string, SynFields>()
-    
-    let rec extractSynType (schema: TypeDefinition) =
-        let synType =
-            match schema.Kind with
-            | Prim primType -> primTypeMatch primType
-                
-            | Array innerType -> arrayOf(extractSynType innerType)
+/// matching type kinds in responses to create their syntatic types
+let rec extractResponseSynType = function
+    | Prim primType -> primTypeMatch primType
+    | Array innerType -> arrayOf (extractResponseSynType innerType)
+    | Option innerType -> optionOf (extractResponseSynType innerType)
+    | Object (Some id, _) -> synType id
+    | Object (None, _) -> failwith "Direct object schemas in response are not supported. Use reference to component instead"
 
-            | Object fieldDefinitions ->
-                
-                // extract field types
-                let fields =
-                    fieldDefinitions
-                    |> List.map ^fun typeDef ->
-                        extractSynType typeDef
-                        |> field typeDef.Name
-                
-                // add name and fields for later
-                typesDict.Add(schema.Name, fields)
-                
-                // return SynType with record name
-                synType schema.Name
-                
-        if schema.Nullable then
-            optionOf synType
-        else
-            synType
+/// extract record definitions from
+let extractRecords (schemas: TypeSchema list) =
+    // store name and fields of records here
+    let typesDict = Dictionary<string, SynFields>()
+
+    let rec extractSynType (name: string, kind: TypeKind) =
+        match kind with
+        | Prim primType -> primTypeMatch primType
+        | Array innerType -> arrayOf (extractSynType (name, innerType))
+        | Option innerType -> optionOf (extractSynType (name, innerType))
+        | Object (_, fieldDefinitions) ->
+
+            // extract field types
+            let fields =
+                fieldDefinitions
+                |> List.map (fun (fieldName, fieldKind) ->
+                    extractSynType (fieldName, fieldKind)
+                    |> field fieldName)
             
+            // add name and fields for later
+            typesDict.Add(name, fields)
+
+            // return SynType with record name
+            synType name
+
     // iterate through schemas
     // records will be stored in dictionary as a side effect
-    schemas
-    |> List.iter (extractSynType >> ignore)
-    
+    for schema in schemas do
+        extractSynType (schema.Name, schema.Kind) |> ignore
+
     // create final record expressions
     typesDict
-    |> Seq.map (fun (KeyValue (name, fields)) ->
-        record name fields)
+    |> Seq.map (fun (KeyValue(name, fields)) -> record name fields)
     |> Seq.toList
-            
 
 /// Creating whole module AST for Giraffe webapp
 let giraffeAst (api: Api) =
     moduleDecl api.Name
         [ openDecl "FSharp.Control.Tasks.V2.ContextInsensitive"
           openDecl "Giraffe"
+          openDecl "System.Threading.Tasks"
+          openDecl "Microsoft.AspNetCore.Http"
 
           let records = extractRecords api.Schemas
           if not records.IsEmpty then
               types records
               
-          typeObjectDecl "Service"
+          abstractClassDecl "Service"
               [ for path in api.Paths do
                   for method in path.Methods do
-                      yield abstractHttpHandler method.Name ]
+                      let responseTypes =
+                          [ for response in method.Responses do
+                                extractResponseSynType response.Kind ]
+                      abstractHttpHandler method.Name
+                      abstractMemberDfn (method.Name + "Input") (synType "HttpContext" ^-> (taskOf [choiceOf responseTypes]))
+                      abstractMemberDfn (method.Name + "Output") (choiceOf responseTypes ^-> synType "HttpHandler") ]
 
           let routes = api.Paths |> List.map createRoute
           
