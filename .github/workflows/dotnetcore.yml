@@ -32,7 +32,7 @@ jobs:
       run: dotnet tool restore
     
     - name: Restore with lock
-      run: dotnet restore --locked-mode
+      run: dotnet restore --locked-mode -s https://api.nuget.org/v3/index.json
     
     - name: Dotnet Pack SDK
       run: dotnet pack src/GiraffeGenerator.Sdk -c Release -o bin/nupkg /p:Version=${{ env.VERSION }}
