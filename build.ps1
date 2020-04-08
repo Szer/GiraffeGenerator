@@ -3,6 +3,8 @@ $version = $matches.Matches[0].Groups[1].Value
 
 rm -r -f bin
 
+dotnet tool restore
+dotnet restore --locked-mode
 dotnet pack src/GiraffeGenerator.Sdk -c Release -o bin/nupkg /p:Version=$version
 dotnet pack src/GiraffeGenerator -c Release -o bin/nupkg /p:Version=$version
 dotnet mergenupkg --source bin/nupkg/GiraffeGenerator.Sdk.$version.nupkg --other bin/nupkg/GiraffeGenerator.$version.nupkg --tools --only-files
