@@ -4,11 +4,11 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>netcoreapp3.1</TargetFramework>
     <PackAsTool>true</PackAsTool>
-    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
   
   <ItemGroup>
     <Compile Include="Program.fs" />
+    <None Include="NuGet.Config" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\GiraffeGenerator.Core\GiraffeGenerator.Core.fsproj" />

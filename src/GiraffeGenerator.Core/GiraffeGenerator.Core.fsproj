@@ -2,7 +2,6 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
-    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,6 +16,7 @@
       <PackagePath>%(Identity)</PackagePath>
       <Visible>true</Visible>
     </Content>
+    <None Include="NuGet.Config" />
   </ItemGroup>
 
   <ItemGroup>
