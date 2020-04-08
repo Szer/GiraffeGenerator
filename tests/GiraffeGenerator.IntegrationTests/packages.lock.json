@@ -28,7 +28,7 @@
         "type": "Direct",
         "requested": "[0.1.0, )",
         "resolved": "0.1.0",
-        "contentHash": "Y54yhnC9v/5bZ7d94VkCw8HMQcF+YXewlKO/Z8hPHdhP5MWY6LGEB+IQV/pYXh4bEHrTKKDRogfkFe3NS168jA=="
+        "contentHash": "9fOy0Oxk1uegOTZHWoDqwQTxFQI6IBim3PkYsa1KFGm5FXCcfkfPB1Qa4pikDWL9CsN1mMft+1ojdVpaTCXOcw=="
       },
       "Microsoft.AspNetCore.TestHost": {
         "type": "Direct",
