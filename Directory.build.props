@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <RepoRootDir>$([System.IO.Path]::GetFullPath("$(MSBuildThisFileDirectory)"))</RepoRootDir>
-        <Version>0.2.1</Version>
+        <Version>0.2.2</Version>
     </PropertyGroup>
 
     <PropertyGroup>
