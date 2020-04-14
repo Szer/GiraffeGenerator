@@ -36,6 +36,9 @@ git stash pop
 
 #run build script early to make sure everything works
 ./build.ps1
+if( $LASTEXITCODE -ne 0 ) {
+    throw "errors on build"
+}
 
 #check that this tag hasn't been released yet
 $tag_exists = git tag -l $version

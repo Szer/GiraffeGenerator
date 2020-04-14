@@ -158,9 +158,15 @@ let giraffeAst (api: Api) =
                           [ for response in method.Responses do
                                 extractResponseSynType response.Kind ]
                       abstractHttpHandler (xml method.Docs) method.Name
-                      abstractMemberDfn (method.Name + "Input") (synType "HttpContext" ^-> (taskOf [choiceOf responseTypes]))
-                      abstractMemberDfn (method.Name + "Output") (choiceOf responseTypes ^-> synType "HttpHandler") ]
-
+                      match responseTypes with
+                      | [] -> ()
+                      | [responseType] -> 
+                        abstractMemberDfn (method.Name + "Input") (synType "HttpContext" ^-> (taskOf [responseType]))
+                        abstractMemberDfn (method.Name + "Output") (responseType ^-> synType "HttpHandler")
+                      | responseTypes ->
+                        abstractMemberDfn (method.Name + "Input") (synType "HttpContext" ^-> (taskOf [choiceOf responseTypes]))
+                        abstractMemberDfn (method.Name + "Output") (choiceOf responseTypes ^-> synType "HttpHandler") ]
+                        
           let routes = api.Paths |> List.map createRoute
           
           let routesExpr =
