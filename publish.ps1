@@ -17,11 +17,10 @@ $minor = $matches.Matches[0].Groups[2].Value
 $patch = $matches.Matches[0].Groups[3].Value
 $version = "$major.$minor.$patch"
 
-#save dir.build.props, changelog and new lock file for later
+#save dir.build.props and changelog for later
 git stash clear
 git stash push Directory.build.props
 git stash push CHANGELOG.md
-git stash push tests/GiraffeGenerator.IntegrationTests/packages.lock.json
 
 #fetch tags and hard reset current master to origin master
 git fetch --all --tags
@@ -30,7 +29,6 @@ git reset --hard origin/master
 git clean -xfd
 
 #unstash dir.build.props and changelog
-git stash pop
 git stash pop
 git stash pop
 
