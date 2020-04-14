@@ -45,7 +45,7 @@ if ($tag_exists -ne $null) {
 }
 
 #check that last version in changelog is lower
-$old_matches = Select-String -path CHANGELOG.md '## \[(\d+)\.(\d+)\.(\d+)\]$'
+$old_matches = Select-String -path CHANGELOG.md '## \[(\d+)\.(\d+)\.(\d+)\]'
 $old_major = 0
 $old_minor = 0
 $old_patch = 0
@@ -68,24 +68,28 @@ if ($major -lt $old_major) {
     }
 }
 
-#put version and current date in changelog
-$date = Get-Date -UFormat "%Y-%m-%d"
-(Get-Content CHANGELOG.md) `
-    -replace '## \[Unreleased\]$', "## [Unreleased]`n`n## [$version] - $date" |
-  Out-File CHANGELOG.md
+# we don't want to change changelog on patch updates
+if ($major -ne $old_major -or $minor -ne $old_minor) {
 
-#put link to changes at bottom
-$repo_link = "https://github.com/Szer/GiraffeGenerator/compare"
-$compareString = Select-String -path CHANGELOG.md "\[Unreleased\]: $repo_link/(.*)\.\.\.(.*)$"
-if($compareString -eq $null) {throw "can't find unreleased link at the bottom of CHANGELOG"}
-
-$from = $compareString.Matches[0].Groups[1].Value
-$to = $compareString.Matches[0].Groups[2].Value
-
-$newLinks = "[Unreleased]: https://github.com/Szer/GiraffeGenerator/compare/v$version...master`n[$version]: https://github.com/Szer/GiraffeGenerator/compare/$from...v$version"
-(Get-Content CHANGELOG.md) `
-    -replace "\[Unreleased\]: $repo_link/.*\.\.\..*$", $newLinks |
-  Out-File CHANGELOG.md
+    #put version and current date in changelog
+    $date = Get-Date -UFormat "%Y-%m-%d"
+    (Get-Content CHANGELOG.md) `
+        -replace '## \[Unreleased\]$', "## [Unreleased]`n`n## [$version] - $date" |
+      Out-File CHANGELOG.md
+    
+    #put link to changes at bottom
+    $repo_link = "https://github.com/Szer/GiraffeGenerator/compare"
+    $compareString = Select-String -path CHANGELOG.md "\[Unreleased\]: $repo_link/(.*)\.\.\.(.*)$"
+    if($compareString -eq $null) {throw "can't find unreleased link at the bottom of CHANGELOG"}
+    
+    $from = $compareString.Matches[0].Groups[1].Value
+    $to = $compareString.Matches[0].Groups[2].Value
+    
+    $newLinks = "[Unreleased]: https://github.com/Szer/GiraffeGenerator/compare/v$version...master`n[$version]: https://github.com/Szer/GiraffeGenerator/compare/$from...v$version"
+    (Get-Content CHANGELOG.md) `
+        -replace "\[Unreleased\]: $repo_link/.*\.\.\..*$", $newLinks |
+      Out-File CHANGELOG.md
+}
 
 #commit dir.build.props with changelog with message "release {version}"
 git commit -m "release v$version" -a
