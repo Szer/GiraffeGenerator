@@ -14,7 +14,7 @@ open Xunit
 type SpecSimpleTests() =
     
     let simpleSpecService =
-        { new SpecSimpleAPI.Service with
+        { new SpecSimpleAPI.Service() with
             member _.listVersionsv2 = text "123"
             member _.getVersionDetailsv2 = text "234"
             member _.postVersionDetailsv2 = text "345" }

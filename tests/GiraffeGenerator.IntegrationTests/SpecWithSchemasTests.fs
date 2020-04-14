@@ -14,10 +14,20 @@ open Xunit
 type SpecWithSchemasTests() =
     
     let specWithSchemasService=
-        { new SpecwithschemasAPI.Service with
+        { new SpecwithschemasAPI.Service() with
+            
             member _.listVersionsv2 = text "123"
-            member _.getVersionDetailsv2 = text "234"
-            member _.postVersionDetailsv2 = text "345" }
+            member this.getVersionDetailsv2 = fun next ctx -> task {
+                let! dataSetList = this.getVersionDetailsv2Input ctx
+                return! this.getVersionDetailsv2Output dataSetList next ctx
+            }
+            
+            member _.getVersionDetailsv2Input ctx = task {
+                return { SpecwithschemasAPI.dataSetList.apis = [||]; total = 123 }
+            }
+            member _.getVersionDetailsv2Output dataSetList = json dataSetList
+            
+            member _.postVersionDetailsv2 = text "345"}
         
     let configureApp (app : IApplicationBuilder) =
         app.UseGiraffe SpecwithschemasAPI.webApp
@@ -53,7 +63,7 @@ type SpecWithSchemasTests() =
     let ``/v2 >=> GET``() = task {
         let! response = client.GetAsync("/v2")
         let! text = response.Content.ReadAsStringAsync()
-        Assert.Equal("234",text)
+        Assert.Equal("{\"total\":123,\"apis\":[]}",text)
     }
     
     [<Fact>]
