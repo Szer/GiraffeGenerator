@@ -14,6 +14,8 @@ It follows [Myriad](https://github.com/MoiraeSoftware/myriad) approach and defin
 
 It's still in VERY early stage of development, so only VERY basic features are being supported.
 
+## Example project is available to check [here](https://github.com/Szer/GiraffeGenerator/tree/master/src/Example)
+
 ## Future feature list (basically TODO list):
 
 - [ ] Creating models from OpenAPI schemas

@@ -2,19 +2,20 @@
 
   <PropertyGroup>
     <TargetFramework>netcoreapp3.1</TargetFramework>
+    <OutputType>exe</OutputType>
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="NuGet.Config" />
     <Compile Include="Generated.fs">
       <OpenApiSpecFile>spec.yaml</OpenApiSpecFile>
     </Compile>
     <Content Include="spec.yaml" />
+    <Compile Include="Program.fs" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Giraffe" Version="4.0.1" />
-    <PackageReference Include="GiraffeGenerator.Sdk" Version="0.1.0" PrivateAssets="all" />
+    <PackageReference Include="GiraffeGenerator.Sdk" Version="0.2.2" PrivateAssets="all" />
   </ItemGroup>
 
 </Project>
