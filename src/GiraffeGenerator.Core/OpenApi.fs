@@ -1,11 +1,31 @@
 module OpenApi
 
+open Microsoft.OpenApi.Any
 open Microsoft.OpenApi.Models
 open Microsoft.OpenApi.Readers
 open System.IO
 
-let inline trimLower (s: string) = s.Trim().ToLowerInvariant()
+let inline trimLower (s: string) =
+    if isNull s then None else
+    s.Trim().ToLowerInvariant() |> Some
 
+let inline splitLine (str: string) =
+    str.Split('\n')
+    |> Seq.toList
+
+type Docs =
+    { Summary: string list option
+      Remarks: string list option
+      Example: string list option }
+    static member Create(summary, remarks, example: IOpenApiAny) =
+        match Option.ofObj summary, Option.ofObj remarks, Option.ofObj example with
+        | None, None, None -> None
+        | summary, remarks, example ->
+            { Summary = summary |> Option.map splitLine
+              Remarks = remarks |> Option.map splitLine
+              Example = example |> Option.map (string >> splitLine) }
+            |> Some
+        
 /// Formats for string type.
 /// URI is not standard, but included
 /// It could be anything
@@ -28,27 +48,50 @@ type StringFormat =
         | "password" -> PasswordString
         | x -> Custom x
         
+/// Active patterns to quickly determine what type OpenApiSchema represents
+let (|ArrayKind|ObjectKind|PrimKind|) (schema: OpenApiSchema) =
+    match trimLower schema.Type with
+    | Some "array"  | None when not (isNull schema.Items)      -> ArrayKind  schema.Items
+    | Some "object" | None when not (isNull schema.Properties) -> ObjectKind schema
+    | Some primType -> PrimKind primType
+    | _ -> failwithf "unexpected type of schema: %A" schema.Type
+        
 /// All primitive type kinds for a fields in type definitions
 type PrimTypeKind =
     | Int
     | Long
     | Double
     | Bool
+    | Any
     | String of StringFormat
     
     static member Parse (typeKind: string, format: string) =
         
-        let format =
-            Option.ofObj format
-            |> Option.map trimLower
-        
-        match trimLower typeKind, format with
-        | "integer", Some "int64" -> Long 
-        | "integer", _ -> Int
-        | "number", _ -> Double
-        | "boolean", _ -> Bool
-        | "string", maybeStringFormat -> String(StringFormat.Parse maybeStringFormat)
+        match trimLower typeKind, trimLower format with
+        | Some "integer", Some "int64" -> Long 
+        | Some "integer", _ -> Int
+        | Some "number", _ -> Double
+        | Some "boolean", _ -> Bool
+        | Some "string", maybeStringFormat -> String(StringFormat.Parse maybeStringFormat)
         | _ -> failwithf "Unexpected type: %s and format: %A" typeKind format
+
+/// IR for object schemas
+and ObjectKind =
+    { Name: string option
+      Properties: (string * TypeKind) list
+      Docs: Docs option }
+    static member Create(schema: OpenApiSchema) =
+        let name =
+            Option.ofObj schema.Reference
+            |> Option.map (fun x -> x.Id)
+            |> Option.orElseWith(fun _ -> Option.ofObj schema.Title)
+        let fields =
+            [ for KeyValue(typeName, internalSchema) in schema.Properties ->
+                typeName, TypeKind.Parse(internalSchema) ]
+        
+        { Name = name
+          Properties = fields
+          Docs = Docs.Create(schema.Description, null, schema.Example) }
 
 /// Kind of types for fields in schemas
 /// Either primitive or Array<T> or Option<T> or Object with properties
@@ -57,26 +100,22 @@ and TypeKind =
     | Prim of PrimTypeKind
     | Array of TypeKind
     | Option of TypeKind
-    | Object of string option * (string * TypeKind) list
+    | Object of ObjectKind
     static member Parse(schema: OpenApiSchema): TypeKind =
+        
+        if isNull schema then Prim PrimTypeKind.Any else
+
         let kind =
-            match trimLower schema.Type with
-            | "array" ->
-                let innerType = TypeKind.Parse schema.Items
-                Array innerType
-
-            | "object" ->
-                let id =
-                    Option.ofObj schema.Reference
-                    |> Option.map (fun x -> x.Id)
-                let fields =
-                    [ for KeyValue(typeName, internalSchema) in schema.Properties ->
-                        typeName, TypeKind.Parse(internalSchema) ]
-                Object (id, fields)
-
-            | primType ->
-                let primType = PrimTypeKind.Parse(primType, schema.Format)
-                Prim primType
+            match schema with
+            | ArrayKind items ->
+                TypeKind.Parse items
+                |> Array
+            | ObjectKind schema ->
+                ObjectKind.Create(schema)
+                |> Object
+            | PrimKind primType ->
+                PrimTypeKind.Parse(primType, schema.Format)
+                |> Prim
 
         if schema.Nullable then
             Option kind
@@ -85,10 +124,12 @@ and TypeKind =
 /// Representation of schema from OpenAPI
 and TypeSchema =
     { Name: string
-      Kind: TypeKind }
+      Kind: TypeKind
+      Docs: Docs option }
     static member Parse(name, schema: OpenApiSchema): TypeSchema =
         { Name = name
-          Kind = TypeKind.Parse schema }
+          Kind = TypeKind.Parse schema
+          Docs = Docs.Create(schema.Description, null, schema.Example) }
 
 /// Supported response media types
 type MediaType =
@@ -105,19 +146,22 @@ type Response =
 type PathMethodCall =
     { Method: string
       Name: string
-      Responses: Response list }
+      Responses: Response list
+      Docs: Docs option }
 
 /// Representation of OpenApi path with methods attach
 /// e.g.: "/v2/item" with GET and SET
 type ParsedPath =
     { Route: string
-      Methods: PathMethodCall list }
+      Methods: PathMethodCall list
+      Docs: Docs option }
 
 /// Representation of a whole spec
 type Api =
     { Name: string
       Paths: ParsedPath list
-      Schemas: TypeSchema list }
+      Schemas: TypeSchema list
+      Docs: Docs option }
 
 let reader = OpenApiStringReader()
 
@@ -133,8 +177,9 @@ let inline private parseCode x =
 
 let inline private parseMediaType x =
     match trimLower x with
-    | "application/json" -> Json
-    | x -> Other x
+    | Some "application/json" -> Json
+    | Some x -> Other x
+    | None -> failwith "Media type can't be null!"
     
 let private parseResponses (operation: OpenApiOperation) =
     [ for KeyValue(code, response) in operation.Responses do
@@ -142,12 +187,13 @@ let private parseResponses (operation: OpenApiOperation) =
             yield { Code = parseCode code
                     MediaType = parseMediaType mediaType
                     Kind = TypeKind.Parse content.Schema } ]
-    
+
 /// Parse OpenApi document into our representation of it
 /// Returning API name and list of ParsedPaths
 let parse (doc: OpenApiDocument): Api =
-    let title = doc.Info.Title.Replace(" ", "")
 
+    let title = doc.Info.Title.Replace(" ", "")
+    
     let schemas =
         [ if not (isNull doc.Components) then
             for KeyValue(typeName, schema) in doc.Components.Schemas ->
@@ -157,18 +203,25 @@ let parse (doc: OpenApiDocument): Api =
         [ for KeyValue(route, path) in doc.Paths do
             let methods =
                 [ for KeyValue(method, op) in path.Operations do
-                    
-                    let responses = parseResponses op
+                    let responses =
+                        [ for KeyValue(code, response) in op.Responses do
+                            for KeyValue(mediaType, content) in response.Content do
+                                yield { Code = parseCode code
+                                        MediaType = parseMediaType mediaType
+                                        Kind = TypeKind.Parse content.Schema } ]
                     if responses.Length > 7 then
                         failwith "There could be only 7 or lower combinations of (mediaType * responseCode) per one path"
                     
                     yield { Method = string method
                             Name = op.OperationId
-                            Responses = responses } ]
+                            Responses = responses
+                            Docs = Docs.Create(op.Description, op.Summary, null) } ]
                 
             yield { Route = route
-                    Methods = methods } ]    
-    
+                    Methods = methods
+                    Docs = Docs.Create(path.Description, path.Summary, null) } ]
+        
     { Name = title
       Paths = paths
-      Schemas = schemas }
+      Schemas = schemas
+      Docs = Docs.Create(doc.Info.Description, null, null)} 

@@ -269,3 +269,6 @@ FakesAssemblies/
 
 # scripts
 **/*.fsx
+
+# package lock for SDK project is unnecessary
+/src/GiraffeGenerator.Sdk/packages.lock.json
