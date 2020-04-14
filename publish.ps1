@@ -6,7 +6,7 @@ Write-Host "Please enter number $rndNumber to continue: "
 $inputNumber = Read-Host
 if ($inputNumber -ne $rndNumber) { exit }
 
-Write-Host "Have you bumped version and added all changes to changelog?"
+Write-Host "Have you bumped version and added all changes to changelog? (y/n)"
 $inputCh = Read-Host
 if ($inputCh -ne "y") { exit }
 
