@@ -1,8 +1,14 @@
+$ErrorActionPreference = "Stop"
+
 # protection from accident runs
 $rndNumber = Get-Random -Maximum 999 -Minimum 100
 Write-Host "Please enter number $rndNumber to continue: "
 $inputNumber = Read-Host
 if ($inputNumber -ne $rndNumber) { exit }
+
+Write-Host "Have you bumped version and updated tests lock file (y/n)?"
+$inputCh = Read-Host
+if ($inputCh -ne "y") { exit }
 
 #read new version from dir.build.props
 $matches = Select-String -path Directory.build.props '<Version>(\d+)\.(\d+)\.(\d+)</Version>'
