@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2020-04-14
+
 ## [0.2.0] - 2020-04-14
 ### Added
 - Record generation from schemas
@@ -17,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial release
 
-[Unreleased]: https://github.com/Szer/GiraffeGenerator/compare/v0.2.0...master
+[Unreleased]: https://github.com/Szer/GiraffeGenerator/compare/v0.2.1...master
+[0.2.1]: https://github.com/Szer/GiraffeGenerator/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Szer/GiraffeGenerator/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Szer/GiraffeGenerator/compare/191a97b...v0.1.0

@@ -26,9 +26,9 @@
       },
       "GiraffeGenerator.Sdk": {
         "type": "Direct",
-        "requested": "[0.1.0, )",
-        "resolved": "0.1.0",
-        "contentHash": "9fOy0Oxk1uegOTZHWoDqwQTxFQI6IBim3PkYsa1KFGm5FXCcfkfPB1Qa4pikDWL9CsN1mMft+1ojdVpaTCXOcw=="
+        "requested": "[0.2.1, )",
+        "resolved": "0.2.1",
+        "contentHash": "IjoMSBZFEMK5yzgDxH9woy8Hrcnn8HWE+Fif0BDqwMLZo6MTORvS27c+UK1pwsCDn8h82FLkjDKiZ0xA/KOhsQ=="
       },
       "Microsoft.AspNetCore.TestHost": {
         "type": "Direct",
