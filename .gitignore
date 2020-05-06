@@ -264,6 +264,7 @@ FakesAssemblies/
 .idea/**
 
 # Generated file in integration test folder
+/tests/GiraffeGenerator.NugetTests/*.fs
 /tests/GiraffeGenerator.IntegrationTests/Spec*.fs
 !/tests/GiraffeGenerator.IntegrationTests/Spec*Tests.fs
 

@@ -1,5 +1,6 @@
 namespace GiraffeGenerator.IntegrationTests
 
+open System.Net
 open FSharp.Control.Tasks.V2.ContextInsensitive
 open System
 open Giraffe
@@ -15,9 +16,9 @@ type SpecSimpleTests() =
     
     let simpleSpecService =
         { new SpecSimpleAPI.Service() with
-            member _.listVersionsv2 = text "123"
-            member _.getVersionDetailsv2 = text "234"
-            member _.postVersionDetailsv2 = text "345" }
+            member _.ListVersionsv2 = text "123"
+            member _.GetVersionDetailsv2 = text "234"
+            member _.PostVersionDetailsv2 = text "345" }
         
     let configureApp (app : IApplicationBuilder) =
         app.UseGiraffe SpecSimpleAPI.webApp
@@ -25,7 +26,7 @@ type SpecSimpleTests() =
     let configureServices (services : IServiceCollection) =
         services
             .AddGiraffe()
-            .AddSingleton<SpecSimpleAPI.Service>(simpleSpecService)
+            .AddSingleton(simpleSpecService)
         |> ignore
 
     let configureLogging (loggerBuilder : ILoggingBuilder) =
@@ -43,24 +44,27 @@ type SpecSimpleTests() =
     let client = server.CreateClient()
 
     [<Fact>]
-    let ``/ >=> GET``() = task {
+    let ``GET / -> OK "123"``() = task {
         let! response = client.GetAsync("/")
         let! text = response.Content.ReadAsStringAsync()
         Assert.Equal("123",text)
+        Assert.Equal(HttpStatusCode.OK ,response.StatusCode)
     }
     
     [<Fact>]
-    let ``/v2 >=> GET``() = task {
+    let ``GET /v2 -> OK "234"``() = task {
         let! response = client.GetAsync("/v2")
         let! text = response.Content.ReadAsStringAsync()
         Assert.Equal("234",text)
+        Assert.Equal(HttpStatusCode.OK ,response.StatusCode)
     }
     
     [<Fact>]
-    let ``/v2 >=> POST``() = task {
+    let ``POST /v2 -> OK "345"``() = task {
         let! response = client.PostAsync("/v2", null)
         let! text = response.Content.ReadAsStringAsync()
         Assert.Equal("345",text)
+        Assert.Equal(HttpStatusCode.OK ,response.StatusCode)
     }
 
     interface IDisposable with

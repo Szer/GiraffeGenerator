@@ -28,6 +28,9 @@ It's still in VERY early stage of development, so only VERY basic features are b
    - [x] `not` *won't be supported*
 - [x] Multiple responses from one endpoint
 - [ ] Creating endpoints with path/query/body bindings
+   - [x] path
+   - [x] query
+   - [ ] body
 - [x] Add XML comments on top of endpoint from OpenAPI descriptions
 - [ ] Support authentication (best efforts)
 - [ ] Support JSON/XML (de-)serialization

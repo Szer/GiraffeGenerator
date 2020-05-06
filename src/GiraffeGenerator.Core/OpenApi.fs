@@ -4,6 +4,7 @@ open Microsoft.OpenApi.Any
 open Microsoft.OpenApi.Models
 open Microsoft.OpenApi.Readers
 open System.IO
+open System.Text.RegularExpressions
 
 let inline trimLower (s: string) =
     if isNull s then None else
@@ -87,11 +88,20 @@ and ObjectKind =
             |> Option.orElseWith(fun _ -> Option.ofObj schema.Title)
         let fields =
             [ for KeyValue(typeName, internalSchema) in schema.Properties ->
-                typeName, TypeKind.Parse(internalSchema) ]
+                typeName, TypeKind.Parse internalSchema ]
         
         { Name = name
           Properties = fields
           Docs = Docs.Create(schema.Description, null, schema.Example) }
+        
+    static member Create(name: string, parameters: OpenApiParameter seq) =
+        let fields =
+            [ for param in parameters ->
+                param.Name, TypeKind.Parse param.Schema ]
+            
+        { Name = Some name
+          Properties = fields
+          Docs = None }
 
 /// Kind of types for fields in schemas
 /// Either primitive or Array<T> or Option<T> or Object with properties
@@ -101,6 +111,7 @@ and TypeKind =
     | Array of TypeKind
     | Option of TypeKind
     | Object of ObjectKind
+    | NoType
     static member Parse(schema: OpenApiSchema): TypeKind =
         
         if isNull schema then Prim PrimTypeKind.Any else
@@ -130,10 +141,16 @@ and TypeSchema =
         { Name = name
           Kind = TypeKind.Parse schema
           Docs = Docs.Create(schema.Description, null, schema.Example) }
+        
+    static member Parse(name, parameters: OpenApiParameter seq): TypeSchema =
+        { Name = name
+          Kind = TypeKind.Object (ObjectKind.Create (name, parameters))
+          Docs = None }
 
 /// Supported response media types
 type MediaType =
     | Json
+    | NoContent
     | Other of string
 
 /// Typed response with corresponding HTTP code, media type and content type
@@ -147,6 +164,7 @@ type PathMethodCall =
     { Method: string
       Name: string
       Responses: Response list
+      Parameters: TypeSchema option
       Docs: Docs option }
 
 /// Representation of OpenApi path with methods attach
@@ -188,6 +206,13 @@ let private parseResponses (operation: OpenApiOperation) =
                     MediaType = parseMediaType mediaType
                     Kind = TypeKind.Parse content.Schema } ]
 
+let private normalizeName =
+    let regex = Regex("[_\.-]([a-z])", RegexOptions.Compiled)
+    let firstCharRegex = Regex("(^.)", RegexOptions.Compiled)
+    fun str ->
+        let s = regex.Replace(str, fun (m: Match) -> m.Groups.[1].Value.ToUpper())
+        firstCharRegex.Replace(s, fun m -> m.Groups.[0].Value.ToUpper())
+
 /// Parse OpenApi document into our representation of it
 /// Returning API name and list of ParsedPaths
 let parse (doc: OpenApiDocument): Api =
@@ -203,18 +228,35 @@ let parse (doc: OpenApiDocument): Api =
         [ for KeyValue(route, path) in doc.Paths do
             let methods =
                 [ for KeyValue(method, op) in path.Operations do
+                    
+                    let methodName = normalizeName (string method)
+                    let opName = normalizeName op.OperationId
+                    
+                    let parameters =
+                        Option.ofObj op.Parameters
+                        |> Option.filter (fun x -> x.Count > 0)
+                        |> Option.map (fun parameters ->
+                            TypeSchema.Parse(methodName + opName, parameters))
+                        
                     let responses =
                         [ for KeyValue(code, response) in op.Responses do
-                            for KeyValue(mediaType, content) in response.Content do
+                            if response.Content.Count > 0 then
+                                for KeyValue(mediaType, content) in response.Content do
+                                    yield { Code = parseCode code
+                                            MediaType = parseMediaType mediaType
+                                            Kind = TypeKind.Parse content.Schema }
+                            else
                                 yield { Code = parseCode code
-                                        MediaType = parseMediaType mediaType
-                                        Kind = TypeKind.Parse content.Schema } ]
+                                        MediaType = NoContent
+                                        Kind = NoType } ]
+                        
                     if responses.Length > 7 then
                         failwith "There could be only 7 or lower combinations of (mediaType * responseCode) per one path"
                     
-                    yield { Method = string method
-                            Name = op.OperationId
+                    yield { Method = methodName
+                            Name = opName
                             Responses = responses
+                            Parameters = parameters
                             Docs = Docs.Create(op.Description, op.Summary, null) } ]
                 
             yield { Route = route

@@ -36,6 +36,14 @@ let openDecl name =
 let synType name =
     SynType.LongIdent(longIdentWithDots name)
 
+/// Expression for function type
+/// {argType} -> {synType}
+let funType argType returnType =
+    SynType.Fun(argType, returnType, r)
+
+/// Infix right-associative operator for creating function type
+let inline (^->) a b = funType a b
+
 /// Argument expression
 let arg name =
     SynArgInfo.SynArgInfo([], false, Some(ident name))
@@ -47,10 +55,10 @@ let emptyArg =
 /// Expression which represents empty argument block for properties
 let propertyVal =
     SynValInfo.SynValInfo([], emptyArg)
-    
+
 /// Expression which represents empty argument block for methods
 let emptyMethodVal =
-    SynValInfo.SynValInfo([[emptyArg]], emptyArg)    
+    SynValInfo.SynValInfo([ [ emptyArg ] ], emptyArg)
 
 /// Expression for named pattern {name}
 let synPat name =
@@ -67,29 +75,15 @@ let curriedArgs argList =
         List.map (arg >> List.singleton) argList
     SynValInfo.SynValInfo(args, emptyArg)
 
-/// Module declaration with splitting incoming string by '.'
-/// and with [<RequireQualifiedAccess>] attribute
-let moduleDecl xml name decls =
-    let moduleName = longIdent name
 
-    let attrib =
-        [ { SynAttributeList.Attributes =
-                [ { SynAttribute.Range = r
-                    TypeName = longIdentWithDots "RequireQualifiedAccess"
-                    ArgExpr = unitExpr
-                    Target = None
-                    AppliesToGetterAndSetter = false } ]
-            Range = r } ]
-    SynModuleOrNamespace.SynModuleOrNamespace
-        (moduleName, false, SynModuleOrNamespaceKind.NamedModule, decls, xml, attrib, None, r)
 
 
 /// Abstract member declaration
 let abstractDfn xmlDocs memberKind valDfn name synType: SynMemberDefn =
     SynMemberDefn.AbstractSlot
         (SynValSig.ValSpfn
-            ([], ident name, SynValTyparDecls.SynValTyparDecls([], true, []), synType, valDfn, false, false,
-             xmlDocs, None, None, r),
+            ([], ident name, SynValTyparDecls.SynValTyparDecls([], true, []), synType, valDfn, false, false, xmlDocs,
+             None, None, r),
          { IsInstance = true
            IsDispatchSlot = true
            IsOverrideOrExplicitImpl = false
@@ -98,12 +92,13 @@ let abstractDfn xmlDocs memberKind valDfn name synType: SynMemberDefn =
 
 /// Abstract method member declaration
 /// abstract {name}: {synType}
-let abstractMemberDfn name synType = abstractDfn xmlEmpty MemberKind.Member emptyMethodVal name synType
+let abstractMemberDfn docs name returnType =
+    abstractDfn docs MemberKind.Member emptyMethodVal name returnType
 
 /// Abstract member declaration returning HttpHandler
 /// abstract {name}: HttpHandler
-let abstractHttpHandler docs name: SynMemberDefn =
-    abstractDfn docs MemberKind.PropertyGet propertyVal name (synType "HttpHandler")
+let abstractGetterDfn docs name returnType: SynMemberDefn =
+    abstractDfn docs MemberKind.PropertyGet propertyVal name returnType
 
 /// Expression for implementing any member kind in class
 let implDefn memberKind isOverride name args expr =
@@ -131,25 +126,35 @@ let propertyImplDefn name expr =
     implDefn MemberKind.PropertyGet true name [] expr
 
 /// Expression for creating single attribute
-let attr name: SynAttribute =
-    { TypeName = longIdentWithDots name
-      ArgExpr = unitExpr
-      Target = None
-      AppliesToGetterAndSetter = false
+let attr name: SynAttributeList =
+    { Attributes =
+          [ { TypeName = longIdentWithDots name
+              ArgExpr = unitExpr
+              Target = None
+              AppliesToGetterAndSetter = false
+              Range = r } ]
       Range = r }
 
 /// Type declaration with provided type name and members
 let abstractClassDecl name members =
     let componentInfo =
         SynComponentInfo.ComponentInfo
-            ([ { Attributes = [ attr "AbstractClass" ]
-                 Range = r } ], [], [], longIdent name, PreXmlDoc.Empty, false, None, r)
+            ([ attr "AbstractClass" ], [], [], longIdent name, PreXmlDoc.Empty, false, None, r)
 
     let implicitCtor =
-        SynMemberDefn.ImplicitCtor(None, [], SynSimplePats.SimplePats([],r),None, r)
-    
+        SynMemberDefn.ImplicitCtor(None, [], SynSimplePats.SimplePats([], r), None, r)
+
     let objModel = SynTypeDefnRepr.ObjectModel(SynTypeDefnKind.TyconUnspecified, implicitCtor :: members, r)
     SynModuleDecl.Types([ TypeDefn(componentInfo, objModel, [], r) ], r)
+
+/// Module declaration with splitting incoming string by '.'
+/// and with [<RequireQualifiedAccess>] attribute
+let moduleDecl xml name decls =
+    let moduleName = longIdent name
+
+    let attrib = [ attr "RequireQualifiedAccess" ]
+    SynModuleOrNamespace.SynModuleOrNamespace
+        (moduleName, false, SynModuleOrNamespaceKind.NamedModule, decls, xml, attrib, None, r)
 
 /// Let declaration for Giraffe HttpHandler with specified name and body expression
 /// E.g.:
@@ -188,9 +193,9 @@ let letGetServiceDecl next =
     SynExpr.LetOrUse
         (false, false,
          [ SynBinding.Binding
-             (None, SynBindingKind.NormalBinding, false, false, [], PreXmlDoc.Empty, SynValData(None, emptyMethodVal, None),
-              SynPat.Named(SynPat.Wild(r), ident "service", false, None, r), None, getServiceCall, r,
-              SequencePointAtBinding(r)) ], next, r)
+             (None, SynBindingKind.NormalBinding, false, false, [], PreXmlDoc.Empty,
+              SynValData(None, emptyMethodVal, None), SynPat.Named(SynPat.Wild(r), ident "service", false, None, r),
+              None, getServiceCall, r, SequencePointAtBinding(r)) ], next, r)
 
 /// Expression for task builder with body:
 /// task { body }
@@ -269,6 +274,11 @@ let strExpr str = SynExpr.Const(SynConst.String(str, r), r)
 let route route =
     app (identExpr "route") (strExpr route)
 
+/// Application expression for Giraffe routeBind function
+/// routeBind {route} {next}
+let routeBind route next =
+    app (app (identExpr "routeBind") (strExpr route)) next
+
 /// Expression for calling methods from service:
 /// service.{name}
 let service name = longIdentExpr ("service." + name)
@@ -276,7 +286,7 @@ let service name = longIdentExpr ("service." + name)
 /// Expression for record with fields
 let record xml name fieldList =
     TypeDefn
-        (SynComponentInfo.ComponentInfo([], [], [], longIdent name, xml, false, None, r),
+        (SynComponentInfo.ComponentInfo([ attr "CLIMutable" ], [], [], longIdent name, xml, false, None, r),
          SynTypeDefnRepr.Simple(SynTypeDefnSimpleRepr.Record(None, fieldList, r), r), [], r)
 
 /// Expression for anonymous record with fields
@@ -284,18 +294,18 @@ let anonRecord fieldList =
     SynType.AnonRecd(false, fieldList, r)
 
 /// Expression for generic type
-let genericType isPostfix name synTypes = 
+let genericType isPostfix name synTypes =
     SynType.App(SynType.LongIdent(longIdentWithDots name), None, synTypes, [], None, isPostfix, r)
- 
+
 /// Expression for generic array type in postfix notation:
 /// {synType} array
 let arrayOf synType =
-    genericType true "array" [synType]
+    genericType true "array" [ synType ]
 
 /// Expression for generic option type in postfix notation:
-/// {synType} optionа
+/// {synType} option
 let optionOf synType =
-    genericType true "option" [synType]
+    genericType true "option" [ synType ]
 
 /// Expression for generic Task type:
 /// Task<{synTypes}>
@@ -307,12 +317,12 @@ let taskOf synTypes =
 let choiceOf synTypes =
     genericType false "Choice" synTypes
 
-/// Expression for function type
-/// {argType} -> {synType}
-let funType argType returnType =
-    SynType.Fun(argType, returnType, r)
-
-let inline (^->) a b = funType a b
+/// Expression for creating tuple type:
+/// {synType0} * {synType1} * {synType2} * ...
+let tuple synTypes =
+    let types =
+        synTypes |> List.map (fun synType -> false, synType)
+    SynType.Tuple(false, types, r)
 
 // Primitive type expressions
 let unitType = synType "unit"
@@ -338,12 +348,13 @@ let types typeDefinitions = SynModuleDecl.Types(typeDefinitions, r)
 /// Creating PreXmlDocs from line list
 let xmlDocs lines =
     let lines = List.collect id lines
-    if List.isEmpty lines then PreXmlDoc.Empty else
-    let collector = XmlDocCollector()
-    let i =
-        List.fold(fun i line ->
-            collector.AddXmlDocLine(line, mkPos i 0)
-            i+1
-        ) 0 lines
-    PreXmlDoc.PreXmlDoc(mkPos i 0, collector)
-    
+    if List.isEmpty lines then
+        PreXmlDoc.Empty
+    else
+        let collector = XmlDocCollector()
+
+        let i =
+            List.fold (fun i line ->
+                collector.AddXmlDocLine(line, mkPos i 0)
+                i + 1) 0 lines
+        PreXmlDoc.PreXmlDoc(mkPos i 0, collector)
