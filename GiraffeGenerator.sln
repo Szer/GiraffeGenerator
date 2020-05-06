@@ -11,6 +11,8 @@ Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Example", "src\Example\Exam
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "GiraffeGenerator.IntegrationTests", "tests\GiraffeGenerator.IntegrationTests\GiraffeGenerator.IntegrationTests.fsproj", "{96A7CC71-42B5-4EEA-8C82-5548F649FC0B}"
 EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "GiraffeGenerator.NugetTests", "tests\GiraffeGenerator.NugetTests\GiraffeGenerator.NugetTests.fsproj", "{78A9E55F-85D1-435C-B292-3E6693852429}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -72,5 +74,17 @@ Global
 		{96A7CC71-42B5-4EEA-8C82-5548F649FC0B}.Release|x64.Build.0 = Release|Any CPU
 		{96A7CC71-42B5-4EEA-8C82-5548F649FC0B}.Release|x86.ActiveCfg = Release|Any CPU
 		{96A7CC71-42B5-4EEA-8C82-5548F649FC0B}.Release|x86.Build.0 = Release|Any CPU
+		{78A9E55F-85D1-435C-B292-3E6693852429}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{78A9E55F-85D1-435C-B292-3E6693852429}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{78A9E55F-85D1-435C-B292-3E6693852429}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{78A9E55F-85D1-435C-B292-3E6693852429}.Debug|x64.Build.0 = Debug|Any CPU
+		{78A9E55F-85D1-435C-B292-3E6693852429}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{78A9E55F-85D1-435C-B292-3E6693852429}.Debug|x86.Build.0 = Debug|Any CPU
+		{78A9E55F-85D1-435C-B292-3E6693852429}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{78A9E55F-85D1-435C-B292-3E6693852429}.Release|Any CPU.Build.0 = Release|Any CPU
+		{78A9E55F-85D1-435C-B292-3E6693852429}.Release|x64.ActiveCfg = Release|Any CPU
+		{78A9E55F-85D1-435C-B292-3E6693852429}.Release|x64.Build.0 = Release|Any CPU
+		{78A9E55F-85D1-435C-B292-3E6693852429}.Release|x86.ActiveCfg = Release|Any CPU
+		{78A9E55F-85D1-435C-B292-3E6693852429}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

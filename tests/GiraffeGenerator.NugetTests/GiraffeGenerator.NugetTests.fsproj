@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Library</OutputType>
+        <TargetFramework>netcoreapp3.1</TargetFramework>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="SpecSimple.fs">
+            <OpenApiSpecFile>../GiraffeGenerator.IntegrationTests/specs/specSimple.yaml</OpenApiSpecFile>
+        </Compile>
+        <None Include="NuGet.Config" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="GiraffeGenerator.Sdk" Version="$(Version)" PrivateAssets="all" />
+        <PackageReference Include="Giraffe" Version="4.0.1" />
+    </ItemGroup>
+
+</Project>
