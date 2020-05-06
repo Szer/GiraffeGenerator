@@ -11,71 +11,38 @@ open Microsoft.Extensions.Logging
 
 let exampleService =
     { new SimpleAPIoverview.Service() with
-        member this.ListVersionsv2 = fun next ctx -> task {
-            let! input = this.ListVersionsv2Input ctx
-            return! this.ListVersionsv2Output input next ctx
+        member this.listVersionsv2 = fun next ctx -> task {
+            let! input = this.listVersionsv2Input ctx
+            return! this.listVersionsv2Output input next ctx
         }
-        member _.ListVersionsv2Input ctx = task {
+        member _.listVersionsv2Input ctx = task {
             return
                 if DateTime.Now.Ticks / 10L % 2L = 0L then
                     Choice1Of2 { SimpleAPIoverview.dataSetList.apis = [||]; total = 123 }
                 else
                     Choice2Of2 true
             }
-        member _.ListVersionsv2Output input =
+        member _.listVersionsv2Output input =
             match input with
             | Choice1Of2 dataList -> json dataList
-            | Choice2Of2 bool -> setStatusCode 300 >=> json bool
+            | Choice2Of2 bool -> json bool
         
         
-        member this.GetVersionDetailsv2 = fun next ctx -> task {
-            let! input = this.GetVersionDetailsv2Input ctx
-            return! this.GetVersionDetailsv2Output input next ctx
+        member this.getVersionDetailsv2 = fun next ctx -> task {
+            let! input = this.getVersionDetailsv2Input ctx
+            return! this.getVersionDetailsv2Output input next ctx
         }
-        member _.GetVersionDetailsv2Input ctx = task {
+        member _.getVersionDetailsv2Input ctx = task {
             return
                 if DateTime.Now.Ticks / 10L % 2L = 0L then
                     Choice1Of2 {| subscriptionId = "hello" |}
                 else
                     Choice2Of2 false
             }
-        member _.GetVersionDetailsv2Output input =
+        member _.getVersionDetailsv2Output input =
             match input with
             | Choice1Of2 sub -> json sub
-            | Choice2Of2 bool -> setStatusCode 203 >=> json bool 
-    
-        member this.ListSearchableFields args = fun next ctx -> task {
-            let! input = this.ListSearchableFieldsInput(args, ctx)
-            return! this.ListSearchableFieldsOutput input next ctx
-        }
-        member _.ListSearchableFieldsInput ((args,ctx)) = task {
-            return
-                if args.version = "v1" then
-                    Choice1Of2 "ok"
-                else
-                    Choice2Of2 "not_ok"
-            }
-        member _.ListSearchableFieldsOutput input =
-            match input with
-            | Choice1Of2 ok -> json ok
-            | Choice2Of2 notok -> setStatusCode 404 >=> json notok
-        
-        member this.PerformSearch args = fun next ctx -> task {
-            let! input = this.PerformSearchInput(args, ctx)
-            return! this.PerformSearchOutput input next ctx
-        }
-        member _.PerformSearchInput ((args,ctx)) = task {
-            return
-                if args.version = "v1" then
-                    Choice1Of2 [| box "abc" |]
-                else
-                    Choice2Of2 ()
-            }
-        member _.PerformSearchOutput input =
-            match input with
-            | Choice1Of2 array -> json array
-            | Choice2Of2 () -> setStatusCode 404 >=> setStatusCode 404 }
-        
+            | Choice2Of2 bool -> json bool }
 
 let configureApp (app : IApplicationBuilder) =
         app.UseGiraffe SimpleAPIoverview.webApp
