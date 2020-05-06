@@ -46,5 +46,8 @@ jobs:
     - name: Dotnet build Example project
       run: dotnet build src/Example -c Release
       
+    - name: Dotnet force restore
+      run: dotnet restore --force --no-cache
+      
     - name: Run Integration Tests
       run: dotnet test -c Release
