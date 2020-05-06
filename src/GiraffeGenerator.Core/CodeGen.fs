@@ -39,20 +39,29 @@ module XmlDoc =
 let createMethod (method: PathMethodCall) =
     method.Method.ToUpperInvariant() |> identExpr >=> service method.Name
 
+let private createRouteHandler path method =
+    let verb = method.Method.ToUpperInvariant() |> identExpr
+    let serviceCall = service method.Name
+    if method.Parameters.IsSome then
+        verb >=> routeBind path serviceCall
+    else
+        verb >=> route path >=> serviceCall
+
 /// helper function to create Giraffe flows:
-/// route {path.Route} >=> {method.Method} >=> service.{method.Name}
+/// {method.Method} >=> route {path.Route} >=> service.{method.Name}
 /// or
-/// route {path.Route} >=> choose [
-///     {method1.Method} >=> service.{method1.Name}
-///     {method2.Method} >=> service.{method2.Name}
+/// {method.Method} >=> routeBind {path.Route} service.{method1.Name}
+/// or
+/// choose [
+///     {method1.Method} >=> route {path.Route} >=> service.{method.Name}
+///     {method2.Method} >=> routeBind {path.Route} service.{method1.Name}
 /// ]
 let createRoute (path: ParsedPath) =
-    let methods =
-        if path.Methods.Length > 1 then
-            chooseExpr [ for method in path.Methods -> createMethod method ]
-        else
-            createMethod path.Methods.[0]
-    route path.Route >=> methods
+    if path.Methods.Length > 1 then
+        chooseExpr (path.Methods
+                    |> List.map (createRouteHandler path.Route))
+    else
+        createRouteHandler path.Route (path.Methods.[0])
 
 /// matching OpenAPI string IR to SynType
 let strFormatMatch = function
@@ -86,7 +95,11 @@ let rec extractResponseSynType = function
             anonObject.Properties
             |> List.map ^fun (name, typeKind) ->
                 AST.ident name, extractResponseSynType typeKind
-        anonRecord fields
+        if fields.IsEmpty then
+            objType
+        else
+            anonRecord fields
+    | NoType -> unitType
 
 /// Creating AST XML docs from API representation
 let xml: Docs option -> PreXmlDoc = function
@@ -125,6 +138,7 @@ let extractRecords (schemas: TypeSchema list) =
 
             // return SynType with record name
             synType name
+        | NoType -> failwith "Field without types are not supported for record schemas"
 
     // iterate through schemas
     // records will be stored in dictionary as a side effect
@@ -147,9 +161,14 @@ let giraffeAst (api: Api) =
           openDecl "System.Threading.Tasks"
           openDecl "Microsoft.AspNetCore.Http"
 
-          let records = extractRecords api.Schemas
-          if not records.IsEmpty then
-              types records
+          let allSchemas =
+              [ for path in api.Paths do
+                    for method in path.Methods do
+                        if method.Parameters.IsSome then
+                            method.Parameters.Value
+                yield! api.Schemas ]
+          if not allSchemas.IsEmpty then
+              types (extractRecords allSchemas)
 
           abstractClassDecl "Service"
               [ for path in api.Paths do
@@ -157,15 +176,30 @@ let giraffeAst (api: Api) =
                       let responseTypes =
                           [ for response in method.Responses do
                                 extractResponseSynType response.Kind ]
-                      abstractHttpHandler (xml method.Docs) method.Name
-                      match responseTypes with
-                      | [] -> ()
-                      | [responseType] -> 
-                        abstractMemberDfn (method.Name + "Input") (synType "HttpContext" ^-> (taskOf [responseType]))
-                        abstractMemberDfn (method.Name + "Output") (responseType ^-> synType "HttpHandler")
-                      | responseTypes ->
-                        abstractMemberDfn (method.Name + "Input") (synType "HttpContext" ^-> (taskOf [choiceOf responseTypes]))
-                        abstractMemberDfn (method.Name + "Output") (choiceOf responseTypes ^-> synType "HttpHandler") ]
+                          
+                      let maybeParams =
+                          method.Parameters
+                          |> Option.map (fun param -> extractResponseSynType param.Kind)
+                          
+                      maybeParams
+                      |> Option.map ^fun param ->
+                          abstractMemberDfn (xml method.Docs) method.Name (param ^-> synType "HttpHandler")
+                      |> Option.defaultWith ^fun _ ->
+                          abstractGetterDfn (xml method.Docs) method.Name (synType "HttpHandler")
+                      
+                      if not responseTypes.IsEmpty then
+                          let returnType =
+                              if responseTypes.Length > 1 then
+                                  choiceOf responseTypes
+                              else
+                                  responseTypes.Head
+                          let fullReturnType =
+                              maybeParams
+                              |> Option.map (fun param -> tuple [param; synType "HttpContext"])
+                              |> Option.defaultValue (synType "HttpContext")
+                              
+                          abstractMemberDfn xmlEmpty (method.Name + "Input") (fullReturnType ^-> taskOf [returnType])
+                          abstractMemberDfn xmlEmpty (method.Name + "Output") (returnType ^-> synType "HttpHandler") ]
                         
           let routes = api.Paths |> List.map createRoute
           
