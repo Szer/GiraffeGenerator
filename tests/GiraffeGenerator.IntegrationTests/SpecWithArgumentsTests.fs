@@ -18,10 +18,6 @@ type SpecWithArgumentsTests() =
     let specWithArgumentsService=
         { new SpecwithargumentsAPI.Service() with
             
-            member this.ListSearchableFields args = fun next ctx -> task {
-                let! input = this.ListSearchableFieldsInput(args, ctx)
-                return! this.ListSearchableFieldsOutput input next ctx
-            }
             member _.ListSearchableFieldsInput ((args,ctx)) = task {
                 return
                     if args.version = "v1" then
@@ -31,15 +27,7 @@ type SpecWithArgumentsTests() =
                     else
                         Choice2Of2 "not_ok"
                 }
-            member _.ListSearchableFieldsOutput input =
-                match input with
-                | Choice1Of2 ok -> json ok
-                | Choice2Of2 notok -> setStatusCode 404 >=> json notok 
             
-            member this.PerformSearch args = fun next ctx -> task {
-                let! input = this.PerformSearchInput(args, ctx)
-                return! this.PerformSearchOutput input next ctx
-            }
             member _.PerformSearchInput ((args,ctx)) = task {
                 return
                     if args.version = "v1" then
@@ -49,10 +37,7 @@ type SpecWithArgumentsTests() =
                     else
                         Choice2Of2 ()
                 }
-            member _.PerformSearchOutput input =
-                match input with
-                | Choice1Of2 array -> json array
-                | Choice2Of2 () -> setStatusCode 404 }
+            }
         
     let configureApp (app : IApplicationBuilder) =
         app.UseGiraffe SpecwithargumentsAPI.webApp
@@ -122,19 +107,6 @@ type SpecWithArgumentsTests() =
         let! text = response.Content.ReadAsStringAsync()
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode)
     }
-//    [<Fact>]
-//    let ``/v2 >=> GET``() = task {
-//        let! response = client.GetAsync("/v2")
-//        let! text = response.Content.ReadAsStringAsync()
-//        Assert.Equal("{\"total\":123,\"apis\":[]}",text)
-//    }
-//    
-//    [<Fact>]
-//    let ``/v2 >=> POST``() = task {
-//        let! response = client.PostAsync("/v2", null)
-//        let! text = response.Content.ReadAsStringAsync()
-//        Assert.Equal("345",text)
-//    }
 
     interface IDisposable with
         member _.Dispose() = server.Dispose()

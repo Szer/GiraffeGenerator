@@ -40,7 +40,7 @@ if( $LASTEXITCODE -ne 0 ) {
 
 #check that this tag hasn't been released yet
 $tag_exists = git tag -l $version
-if ($tag_exists -ne $null) {
+if ($null -ne $tag_exists) {
     throw "Tag already exists"
 }
 
@@ -50,7 +50,7 @@ $old_major = 0
 $old_minor = 0
 $old_patch = 0
 
-if ($old_matches -ne $null) {
+if ($null -ne $old_matches) {
     $old_major = $old_matches.Matches[0].Groups[1].Value
     $old_minor = $old_matches.Matches[0].Groups[2].Value
     $old_patch = $old_matches.Matches[0].Groups[3].Value
@@ -80,10 +80,9 @@ if ($major -ne $old_major -or $minor -ne $old_minor) {
     #put link to changes at bottom
     $repo_link = "https://github.com/Szer/GiraffeGenerator/compare"
     $compareString = Select-String -path CHANGELOG.md "\[Unreleased\]: $repo_link/(.*)\.\.\.(.*)$"
-    if($compareString -eq $null) {throw "can't find unreleased link at the bottom of CHANGELOG"}
+    if($null -ne $compareString) {throw "can't find unreleased link at the bottom of CHANGELOG"}
     
     $from = $compareString.Matches[0].Groups[1].Value
-    $to = $compareString.Matches[0].Groups[2].Value
     
     $newLinks = "[Unreleased]: https://github.com/Szer/GiraffeGenerator/compare/v$version...master`n[$version]: https://github.com/Szer/GiraffeGenerator/compare/$from...v$version"
     (Get-Content CHANGELOG.md) `
@@ -92,7 +91,7 @@ if ($major -ne $old_major -or $minor -ne $old_minor) {
 }
 
 #commit dir.build.props with changelog with message "release {version}"
-git commit -m "release v$version" -a
+git commit -m "release v$version" -a --allow-empty
 git tag -a "v$version" -m "release v$version"
 
 #push to master with tags

@@ -150,7 +150,7 @@ and TypeSchema =
 /// Supported response media types
 type MediaType =
     | Json
-    | NoContent
+    | NotSpecified
     | Other of string
 
 /// Typed response with corresponding HTTP code, media type and content type
@@ -242,22 +242,22 @@ let parse (doc: OpenApiDocument): Api =
                         [ for KeyValue(code, response) in op.Responses do
                             if response.Content.Count > 0 then
                                 for KeyValue(mediaType, content) in response.Content do
-                                    yield { Code = parseCode code
-                                            MediaType = parseMediaType mediaType
-                                            Kind = TypeKind.Parse content.Schema }
+                                    { Code = parseCode code
+                                      MediaType = parseMediaType mediaType
+                                      Kind = TypeKind.Parse content.Schema }
                             else
-                                yield { Code = parseCode code
-                                        MediaType = NoContent
-                                        Kind = NoType } ]
+                                { Code = parseCode code
+                                  MediaType = NotSpecified
+                                  Kind = NoType } ]
                         
                     if responses.Length > 7 then
                         failwith "There could be only 7 or lower combinations of (mediaType * responseCode) per one path"
                     
-                    yield { Method = methodName
-                            Name = opName
-                            Responses = responses
-                            Parameters = parameters
-                            Docs = Docs.Create(op.Description, op.Summary, null) } ]
+                    { Method = methodName
+                      Name = opName
+                      Responses = responses
+                      Parameters = parameters
+                      Docs = Docs.Create(op.Description, op.Summary, null) } ]
                 
             yield { Route = route
                     Methods = methods
