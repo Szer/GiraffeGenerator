@@ -27,10 +27,6 @@ type SpecWithArgumentsTests() =
                     else
                         Choice2Of2 "not_ok"
                 }
-            member _.ListSearchableFieldsOutput input =
-                match input with
-                | Choice1Of2 ok -> json ok
-                | Choice2Of2 notok -> setStatusCode 404 >=> json notok 
             
             member _.PerformSearchInput ((args,ctx)) = task {
                 return
@@ -41,10 +37,7 @@ type SpecWithArgumentsTests() =
                     else
                         Choice2Of2 ()
                 }
-            member _.PerformSearchOutput input =
-                match input with
-                | Choice1Of2 array -> json array
-                | Choice2Of2 () -> setStatusCode 404 }
+            }
         
     let configureApp (app : IApplicationBuilder) =
         app.UseGiraffe SpecwithargumentsAPI.webApp

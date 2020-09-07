@@ -48,6 +48,11 @@ type Service() =
     abstract ListVersionsv2Input: HttpContext -> Task<Choice<dataSetList, bool>>
     abstract ListVersionsv2Output: Choice<dataSetList, bool> -> HttpHandler
 
+    override this.ListVersionsv2Output input =
+        match input with
+        | Choice1Of2 responseOn200 -> json responseOn200
+        | Choice2Of2 responseOn300 -> setStatusCode 300 >=> json responseOn300
+
     ///<summary>
     ///This is even cooler API for listing detail versions
     ///</summary>
@@ -65,6 +70,11 @@ type Service() =
 
     abstract GetVersionDetailsv2Input: HttpContext -> Task<Choice<{| subscriptionId: string |}, bool>>
     abstract GetVersionDetailsv2Output: Choice<{| subscriptionId: string |}, bool> -> HttpHandler
+
+    override this.GetVersionDetailsv2Output input =
+        match input with
+        | Choice1Of2 responseOn200 -> json responseOn200
+        | Choice2Of2 responseOn203 -> setStatusCode 203 >=> json responseOn203
 
 let webApp: HttpHandler =
     fun next ctx ->

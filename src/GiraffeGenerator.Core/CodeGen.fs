@@ -157,7 +157,6 @@ let extractRecords (schemas: TypeSchema list) =
         record xmlDocs name fields
     |> Seq.toList
 
-
 /// Creating whole module AST for Giraffe webapp
 let giraffeAst (api: Api) =
     moduleDecl
@@ -187,40 +186,31 @@ let giraffeAst (api: Api) =
                       let maybeParams =
                           method.Parameters
                           |> Option.map (fun param -> extractResponseSynType param.Kind)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
                       
                       // emitting httpHandler abstract method or property
                       maybeParams
                       |> Option.map ^ fun param ->
-                             // abstract {method.Name}: {method.Parameters} -> HttpHandler  
+                             // <summary>{method.Docs}</summary>
+                             // abstract {method.Name}: {param} -> HttpHandler  
                              abstractMemberDfn (xml method.Docs) method.Name (param ^-> synType "HttpHandler")
                       |> Option.defaultWith ^ fun _ ->
+                             // <summary>{method.Docs}</summary>
                              // abstract {method.Name}: HttpHandler
                              abstractGetterDfn (xml method.Docs) method.Name (synType "HttpHandler")
-                             
-
 
                       if not responseTypes.IsEmpty then
+                          // Choice<{responseTypes[0]}, {responseTypes[1]}, ...>
+                          // Or {responseType}
                           let returnType =
-                              if responseTypes.Length > 1 then choiceOf responseTypes else responseTypes.Head
+                              if responseTypes.Length > 1
+                              then choiceOf responseTypes
+                              else responseTypes.Head
 
                           let fullReturnType =
                               maybeParams
+                              // ({param} * HttpContext)
                               |> Option.map (fun param -> tuple [ param; synType "HttpContext" ])
+                              // HttpContext
                               |> Option.defaultValue (synType "HttpContext")
                               
                           // helper for emitting:                                                                             
@@ -256,9 +246,50 @@ let giraffeAst (api: Api) =
                                 defaultImplementationEmitter
                                     (methodImplDefn method.Name [])
                                     (identExpr "ctx")
+                                    
+                          let a = 1
                           
+                          // abstract {method.Name}Input: {fullReturnType} -> Task<{returnType}>
                           abstractMemberDfn xmlEmpty (method.Name + "Input") (fullReturnType ^-> taskOf [ returnType ])
-                          abstractMemberDfn xmlEmpty (method.Name + "Output") (returnType ^-> synType "HttpHandler") ]
+                          // abstract {method.Name}Output: {returnType} -> HttpHandler
+                          abstractMemberDfn xmlEmpty (method.Name + "Output") (returnType ^-> synType "HttpHandler")
+                          
+                          // giraffe handler for particular response
+                          let response2handler (response: Response) inputBinding =
+                                let contentHandler =
+                                    // currently everything goes to json
+                                    match response.MediaType with
+                                    | Json
+                                    | NotSpecified -> app (identExpr "json" ) (identExpr inputBinding)
+                                    | Other x -> failwithf "Emitting of code for media type %s currently not supported" x
+                                
+                                if response.Code = 200
+                                then
+                                    contentHandler
+                                else
+                                    setStatusCodeExpr response.Code >=> contentHandler
+                          
+                          // match generator for different responses
+                          let methodResponseToClause (responses: Response list): SynMatchClause list =
+                              let patName n = sprintf "Choice%dOf%d" n responses.Length
+                              responses
+                              |> List.mapi ^fun i response ->
+                                  let i = i + 1
+                                  let patBinding = sprintf "responseOn%d" response.Code
+                                  synLongPat (patName i) patBinding ^=> response2handler response patBinding
+                          
+                          // body for default implementation of Output method
+                          let body = 
+                              if method.Responses.Length > 1 then
+                                matchExpr "input" ^methodResponseToClause method.Responses
+                              else
+                                response2handler method.Responses.Head "input"
+                          
+                          // override this.{method.Name}Output input =
+                          //    match input with
+                          //    | Choice1Of2 array -> json array
+                          //    | Choice2Of2 () -> setStatusCode 404 }
+                          methodImplDefn (method.Name + "Output") ["input"] body ]
 
           let routes = api.Paths |> List.map createRoute
 

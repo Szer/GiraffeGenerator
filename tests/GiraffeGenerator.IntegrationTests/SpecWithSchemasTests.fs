@@ -22,8 +22,6 @@ type SpecWithSchemasTests() =
             member _.GetVersionDetailsv2Input ctx = task {
                 return { SpecwithschemasAPI.dataSetList.apis = [||]; total = 123 }
             }
-            member _.GetVersionDetailsv2Output dataSetList = json dataSetList
-            
             member _.PostVersionDetailsv2 = text "345"}
         
     let configureApp (app : IApplicationBuilder) =

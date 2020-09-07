@@ -18,12 +18,6 @@ let exampleService =
                 else
                     Choice2Of2 true
             }
-        member _.ListVersionsv2Output input =
-            match input with
-            | Choice1Of2 dataList -> json dataList
-            | Choice2Of2 bool -> json bool
-        
-        
         member _.GetVersionDetailsv2Input ctx = task {
             return
                 if DateTime.Now.Ticks / 10L % 2L = 0L then
@@ -31,10 +25,7 @@ let exampleService =
                 else
                     Choice2Of2 false
             }
-        member _.GetVersionDetailsv2Output input =
-            match input with
-            | Choice1Of2 sub -> json sub
-            | Choice2Of2 bool -> json bool }
+    }
 
 let configureApp (app : IApplicationBuilder) =
         app.UseGiraffe SimpleAPIoverview.webApp

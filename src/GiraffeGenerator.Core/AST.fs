@@ -16,6 +16,9 @@ let xmlEmpty = PreXmlDoc.Empty
 /// expression for ()
 let unitExpr = SynExpr.Const(SynConst.Unit, r)
 
+/// int expression
+let intExpr i = SynExpr.Const(SynConst.Int32 i, r)
+
 /// Ident with 0-range from string
 let ident name = Ident(name, r)
 
@@ -60,6 +63,11 @@ let emptyMethodVal =
 /// Expression for named pattern {name}
 let synPat name =
     SynPat.Named(SynPat.Wild(r), ident name, false, None, r)
+
+/// Expression for long idented pattern
+/// {pat} {name}
+let synLongPat pat name =
+    SynPat.LongIdent(longIdentWithDots pat, None, None, SynArgPats.Pats [ synPat name ], None, r)
 
 /// Expression for multiple args in ctor with patterns
 let ctorArgs args = Pats <| List.map synPat args
@@ -423,19 +431,33 @@ let xmlDocs lines =
 /// curried function call with multiple args
 /// {name} {args[0]} {args[1]} ...
 let curriedCall name args =
-    if List.isEmpty args then failwith "Can't invoke thisCallInputNextCtx with empty arg list"
-    
+    if List.isEmpty args
+    then failwith "Can't invoke thisCallInputNextCtx with empty arg list"
+
     let rec inner argsRest resultSoFar =
         match argsRest with
         | [] -> resultSoFar
-        | arg::rest ->
-            identExpr arg
-            |> app resultSoFar
-            |> inner rest
-    longIdentExpr name
-    |> inner args
-    
+        | arg :: rest -> identExpr arg |> app resultSoFar |> inner rest
+
+    longIdentExpr name |> inner args
+
 /// Tuple expression
 /// ({args[0]}, {args[1]}, ...)
 let tupleExpr args =
-    SynExpr.Paren(SynExpr.Tuple(false, List.map identExpr args, [r], r), r, Some r, r)
+    SynExpr.Paren(SynExpr.Tuple(false, List.map identExpr args, [ r ], r), r, Some r, r)
+
+/// Simple match clause expr
+/// | {pat} -> {expr}
+let clause pat expr =
+    SynMatchClause.Clause(pat, None, expr, r, DebugPointForTarget.Yes)
+
+/// Match expression
+/// match {what} with {clauses}
+let matchExpr what clauses =
+    SynExpr.Match(DebugPointAtBinding r, identExpr what, clauses, r)
+
+/// Infix right-associative operator for creating match clauses
+let inline (^=>) a b = clause a b
+
+let setStatusCodeExpr code =
+    app (identExpr "setStatusCode") (intExpr code)
