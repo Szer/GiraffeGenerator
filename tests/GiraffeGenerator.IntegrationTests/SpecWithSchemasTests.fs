@@ -18,10 +18,6 @@ type SpecWithSchemasTests() =
         { new SpecwithschemasAPI.Service() with
             
             member _.ListVersionsv2 = text "123"
-            member this.GetVersionDetailsv2 = fun next ctx -> task {
-                let! dataSetList = this.GetVersionDetailsv2Input ctx
-                return! this.GetVersionDetailsv2Output dataSetList next ctx
-            }
             
             member _.GetVersionDetailsv2Input ctx = task {
                 return { SpecwithschemasAPI.dataSetList.apis = [||]; total = 123 }
