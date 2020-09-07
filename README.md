@@ -34,6 +34,8 @@ It's still in VERY early stage of development, so only VERY basic features are b
 - [x] Add XML comments on top of endpoint from OpenAPI descriptions
 - [ ] Support authentication (best efforts)
 - [ ] Support JSON/XML (de-)serialization
+   - [x] JSON
+   - [ ] XML
 
 ## How to use
 
