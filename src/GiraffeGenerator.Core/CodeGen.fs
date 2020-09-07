@@ -1,11 +1,11 @@
 module CodeGen
 
 open System.Collections.Generic
-open System.IO
 open AST
 open OpenApi
 open Fantomas
-open FSharp.Compiler.Ast
+open FSharp.Compiler.XmlDoc
+open FSharp.Compiler.SyntaxTree
 
 let inline (^) f x = f x
 
@@ -117,7 +117,7 @@ let xml: Docs option -> PreXmlDoc = function
 /// extract record definitions from
 let extractRecords (schemas: TypeSchema list) =
     // store name and fields of records here
-    let typesDict = Dictionary<string, SynFields * Docs option>()
+    let typesDict = Dictionary<string, SynField list * Docs option>()
 
     let rec extractSynType (name: string, kind: TypeKind) =
         match kind with

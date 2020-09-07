@@ -1,6 +1,7 @@
 module AST
 
-open FSharp.Compiler.Ast
+open FSharp.Compiler.XmlDoc
+open FSharp.Compiler.SyntaxTree
 open FSharp.Compiler.Range
 
 /// Zero range. Used pretty much everywhere
@@ -113,7 +114,7 @@ let implDefn memberKind isOverride name args expr =
                        IsFinal = false
                        MemberKind = memberKind }, curriedArgs args, None),
              SynPat.LongIdent(longIdentWithDots ("this." + name), None, None, ctorArgs args, None, r), None, expr, r,
-             NoSequencePointAtInvisibleBinding), r)
+             NoDebugPointAtInvisibleBinding), r)
 
 /// Expression for override method
 /// override __.{name} {args} = {expr}
@@ -176,7 +177,7 @@ let letHttpHandlerDecl name expr =
                            (false, true,
                             SynSimplePats.SimplePats([ SynSimplePat.Id(ident "ctx", None, false, false, false, r) ], r),
                             expr, r), r), SynType.LongIdent(longIdentWithDots "HttpHandler"), r), r,
-              NoSequencePointAtLetBinding) ], r)
+              NoDebugPointAtLetBinding) ], r)
 
 /// Expression for calling:
 /// ctx.GetService<Service>()
@@ -195,7 +196,7 @@ let letGetServiceDecl next =
          [ SynBinding.Binding
              (None, SynBindingKind.NormalBinding, false, false, [], PreXmlDoc.Empty,
               SynValData(None, emptyMethodVal, None), SynPat.Named(SynPat.Wild(r), ident "service", false, None, r),
-              None, getServiceCall, r, SequencePointAtBinding(r)) ], next, r)
+              None, getServiceCall, r, DebugPointAtBinding(r)) ], next, r)
 
 /// Expression for task builder with body:
 /// task { body }
@@ -234,7 +235,7 @@ let longIdentExpr name = SynExpr.LongIdent(false, longIdentWithDots name, None, 
 
 /// Sequential expression for two expressions (used in CE)
 let seqExpr expr1 expr2 =
-    SynExpr.Sequential(SequencePointsAtSeq, true, expr1, expr2, r)
+    SynExpr.Sequential(DebugPointAtSequential.Both, true, expr1, expr2, r)
 
 /// Sequential expression for expression list (used in CE)
 /// [ e1; e2; e3; e4] -> Seq(e1, Seq(e2, Seq(e3, e4)))
