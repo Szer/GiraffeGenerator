@@ -21,6 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Update="FSharp.Core" Version="4.7.2"/>
     <PackageReference Include="Fantomas" Version="4.0.0" />
     <PackageReference Include="FSharp.Compiler.Service" Version="37.0.0" />
     <PackageReference Include="Microsoft.OpenApi.Readers" Version="1.2.3" />

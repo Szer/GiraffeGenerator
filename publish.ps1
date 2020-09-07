@@ -80,7 +80,7 @@ if ($major -ne $old_major -or $minor -ne $old_minor) {
     #put link to changes at bottom
     $repo_link = "https://github.com/Szer/GiraffeGenerator/compare"
     $compareString = Select-String -path CHANGELOG.md "\[Unreleased\]: $repo_link/(.*)\.\.\.(.*)$"
-    if($null -ne $compareString) {throw "can't find unreleased link at the bottom of CHANGELOG"}
+    if($null -eq $compareString) {throw "can't find unreleased link at the bottom of CHANGELOG"}
     
     $from = $compareString.Matches[0].Groups[1].Value
     
