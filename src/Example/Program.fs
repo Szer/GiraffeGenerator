@@ -11,21 +11,38 @@ open Microsoft.Extensions.Logging
 
 let exampleService =
     { new SimpleAPIoverview.Service() with
-        member _.ListVersionsv2Input ctx = task {
+        member this.listVersionsv2 = fun next ctx -> task {
+            let! input = this.listVersionsv2Input ctx
+            return! this.listVersionsv2Output input next ctx
+        }
+        member _.listVersionsv2Input ctx = task {
             return
                 if DateTime.Now.Ticks / 10L % 2L = 0L then
                     Choice1Of2 { SimpleAPIoverview.dataSetList.apis = [||]; total = 123 }
                 else
                     Choice2Of2 true
             }
-        member _.GetVersionDetailsv2Input ctx = task {
+        member _.listVersionsv2Output input =
+            match input with
+            | Choice1Of2 dataList -> json dataList
+            | Choice2Of2 bool -> json bool
+        
+        
+        member this.getVersionDetailsv2 = fun next ctx -> task {
+            let! input = this.getVersionDetailsv2Input ctx
+            return! this.getVersionDetailsv2Output input next ctx
+        }
+        member _.getVersionDetailsv2Input ctx = task {
             return
                 if DateTime.Now.Ticks / 10L % 2L = 0L then
                     Choice1Of2 {| subscriptionId = "hello" |}
                 else
                     Choice2Of2 false
             }
-    }
+        member _.getVersionDetailsv2Output input =
+            match input with
+            | Choice1Of2 sub -> json sub
+            | Choice2Of2 bool -> json bool }
 
 let configureApp (app : IApplicationBuilder) =
         app.UseGiraffe SimpleAPIoverview.webApp

@@ -12,7 +12,6 @@ open Microsoft.AspNetCore.Http
 ///<summary>
 ///This is apis
 ///</summary>
-[<CLIMutable>]
 type apis =
     { apiKey: string
       apiVersionNumber: string
@@ -26,32 +25,23 @@ type apis =
 ///<summary>
 ///This is data set list
 ///</summary>
-and [<CLIMutable>] dataSetList = { total: int; apis: apis array }
+and dataSetList =
+    { total: int
+      apis: apis array }
 
 [<AbstractClass>]
 type Service() =
+
     ///<summary>
     ///This is very cool API for list API versions
     ///</summary>
     ///<remarks>
     ///List API versions
     ///</remarks>
-    abstract ListVersionsv2: HttpHandler
+    abstract listVersionsv2: HttpHandler
 
-    override this.ListVersionsv2 =
-        fun next ctx ->
-            task {
-                let! input = this.ListVersionsv2Input ctx
-                return! this.ListVersionsv2Output input next ctx
-            }
-
-    abstract ListVersionsv2Input: HttpContext -> Task<Choice<dataSetList, bool>>
-    abstract ListVersionsv2Output: Choice<dataSetList, bool> -> HttpHandler
-
-    override this.ListVersionsv2Output input =
-        match input with
-        | Choice1Of2 responseOn200 -> json responseOn200
-        | Choice2Of2 responseOn300 -> setStatusCode 300 >=> json responseOn300
+    abstract listVersionsv2Input: HttpContext -> Task<Choice<dataSetList, bool>>
+    abstract listVersionsv2Output: Choice<dataSetList, bool> -> HttpHandler
 
     ///<summary>
     ///This is even cooler API for listing detail versions
@@ -59,33 +49,17 @@ type Service() =
     ///<remarks>
     ///List API version details
     ///</remarks>
-    abstract GetVersionDetailsv2: HttpHandler
+    abstract getVersionDetailsv2: HttpHandler
 
-    override this.GetVersionDetailsv2 =
-        fun next ctx ->
-            task {
-                let! input = this.GetVersionDetailsv2Input ctx
-                return! this.GetVersionDetailsv2Output input next ctx
-            }
-
-    abstract GetVersionDetailsv2Input: HttpContext -> Task<Choice<{| subscriptionId: string |}, bool>>
-    abstract GetVersionDetailsv2Output: Choice<{| subscriptionId: string |}, bool> -> HttpHandler
-
-    override this.GetVersionDetailsv2Output input =
-        match input with
-        | Choice1Of2 responseOn200 -> json responseOn200
-        | Choice2Of2 responseOn203 -> setStatusCode 203 >=> json responseOn203
+    abstract getVersionDetailsv2Input: HttpContext -> Task<Choice<{| subscriptionId: string |}, bool>>
+    abstract getVersionDetailsv2Output: Choice<{| subscriptionId: string |}, bool> -> HttpHandler
 
 let webApp: HttpHandler =
     fun next ctx ->
         task {
             let service = ctx.GetService<Service>()
             return! choose
-                        [ GET >=> route "/" >=> service.ListVersionsv2
-                          GET
-                          >=> route "/v2"
-                          >=> service.GetVersionDetailsv2
-                           ]
-                        next
-                        ctx
+                        [ route "/" >=> GET >=> service.listVersionsv2
+                          route "/v2" >=> GET >=> service.getVersionDetailsv2
+                           ] next ctx
         }
