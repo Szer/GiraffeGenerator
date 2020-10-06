@@ -289,6 +289,11 @@ let letOrUseDecl name parameters body next =
 let letGetServiceDecl next =
     letOrUseDecl "service" [] getServiceCall next
 
+/// If-Then-Else expression
+/// if {cond} then {ifTrue} else {ifFalse}
+let ifElseExpr cond ifTrue ifFalse =
+    SynExpr.IfThenElse(cond, ifTrue, Some ifFalse, DebugPointForBinding.NoDebugPointAtInvisibleBinding, false, r, r)
+
 /// LetBang! expression:
 /// let! {ident} = {expr} in {next}
 let letBangExpr ident expr next =

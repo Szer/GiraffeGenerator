@@ -419,6 +419,13 @@ let giraffeAst (api: Api) =
                                 ^|> app (longIdentExpr "Seq.map") (identExpr mapCheckers)
                                 ^|> app (longIdentExpr "Seq.choose") (identExpr "id")
                                 ^|> longIdentExpr "Seq.toArray"
+                                ^|> lambda (simplePats[simplePat "v"])
+                                    (
+                                        ifElseExpr
+                                            (app (appI (identExpr "op_GreaterThan") (longIdentExpr "v.Length")) (constExpr (SynConst.Int32 1)))
+                                            (identExpr "v" ^|> identExpr errInnerCombined)
+                                            (identExpr "v" ^|> longIdentExpr "Array.head")
+                                    )
                                 ^|> identExpr errType
                             )
                     )
