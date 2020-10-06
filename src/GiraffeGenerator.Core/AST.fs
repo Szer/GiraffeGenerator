@@ -312,6 +312,11 @@ let taskBuilder body =
 /// return! {expr}
 let returnBang expr =
     SynExpr.YieldOrReturnFrom((false, true), expr, r)
+    
+/// Expression for Return (return) with continuation:
+/// return {expr}
+let returnExpr expr =
+    SynExpr.YieldOrReturn((false, true), expr, r)
 
 /// Expression for list comprehension:
 /// [ {expr} ]
@@ -545,7 +550,7 @@ let tupleExpr args =
     
 /// Tuple pattern (for arg list or matching) 
 let tuplePat args =
-    SynPat.Tuple(false, args |> List.map (fun v -> SynPat.Named(SynPat.Wild(r), ident v, false, None, r)), r)
+    SynPat.Paren(SynPat.Tuple(false, args |> List.map (fun v -> SynPat.Named(SynPat.Wild(r), ident v, false, None, r)), r), r)
 
 /// Simple match clause expr
 /// | {pat} -> {expr}

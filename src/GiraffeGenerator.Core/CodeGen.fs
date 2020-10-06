@@ -764,80 +764,157 @@ let giraffeAst (api: Api) =
                                     |> Option.map ^ letOrUseDecl pathBinding []
 
                                 let combinedInputs = "combinedArgs"
-                                let generateInputsCombination synt (schema: TypeSchema) bindings =
-                                    let rec generateBinds binded leftToBind =
-                                        if List.length leftToBind > 0 then
-                                            identExpr binded
-                                            ^|> appResultBind
-                                                ^ lambda ([simplePat binded] |> simplePats)
-                                                    ^ generateBinds leftToBind.Head leftToBind.Tail
-                                        else
-                                            identExpr binded
+                                let rec generateBinds binded leftToBind generateFinal =
+                                    if List.length leftToBind > 0 then
+                                        identExpr binded
+                                        ^|> appResultBind
+                                            ^ lambda ([simplePat binded] |> simplePats)
+                                                ^ generateBinds leftToBind.Head leftToBind.Tail generateFinal
+                                    else
+                                        identExpr binded
                                             ^|> appResultMap
-                                                ^ lambda ([simplePat binded] |> simplePats)
-                                                    ^ letOrUseComplexDecl
-                                                        (SynPat.Typed(SynPat.Named(SynPat.Wild r, ident "v", false, None, r), synt, r))
-                                                        (
-                                                            let bindings = Map bindings
-                                                            match schema.Kind with
-                                                            | TypeKind.Object o ->
-                                                                let mapping = parametersLocationNameMapping |> Map.find (method.Method, method.Name)
-                                                                [
-                                                                    for (name, _, _) in o.Properties do
-                                                                        let (sourceLocation, sourceName) = mapping |> Map.find name
-                                                                        let sourceBinding = bindings |> Map.find sourceLocation
-                                                                        name, longIdentExpr (sourceBinding + "." + sourceName)
-                                                                ]
-                                                            | _ -> failwith "combined record should be a record, you know"
-                                                            |> recordExpr
-                                                        )
-                                                        (identExpr "v")
+                                                ^ lambda ([simplePat binded] |> simplePats) ^ generateFinal()
+                                let generateInputsCombination synt (schema: TypeSchema) bindings =
+                                    let finalGenerator () =
+                                        letOrUseComplexDecl
+                                            (SynPat.Typed(SynPat.Named(SynPat.Wild r, ident "v", false, None, r), synt, r))
+                                            (
+                                                let bindings = Map bindings
+                                                match schema.Kind with
+                                                | TypeKind.Object o ->
+                                                    let mapping = parametersLocationNameMapping |> Map.find (method.Method, method.Name)
+                                                    [
+                                                        for (name, _, _) in o.Properties do
+                                                            let (sourceLocation, sourceName) = mapping |> Map.find name
+                                                            let sourceBinding = bindings |> Map.find sourceLocation
+                                                            name, longIdentExpr (sourceBinding + "." + sourceName)
+                                                    ]
+                                                | _ -> failwith "combined record should be a record, you know"
+                                                |> recordExpr
+                                            )
+                                            (identExpr "v")
                                     let onlyNames = bindings |> List.map snd
-                                    generateBinds onlyNames.Head onlyNames.Tail
+                                    generateBinds onlyNames.Head onlyNames.Tail finalGenerator
+                                    
+                                let nonCombinedNonBodyArgs =
+                                    [
+                                        maybeBindPath |> Option.map ^ fun _ -> Path, pathBinding
+                                        maybeBindQuery |> Option.map ^ fun _ -> Query, queryBinding
+                                    ]
+                                    |> List.choose id
                                     
                                 let maybeBindCombined =
                                     Option.map2 (fun a b -> a,b) maybeCombinedType maybeCombinedTypeOpenApi
                                     |> Option.bind
                                         (
                                             fun (synt,schema) ->
-                                                [
-                                                    maybeBindPath |> Option.map ^ fun _ -> Path, pathBinding
-                                                    maybeBindQuery |> Option.map ^ fun _ -> Query, queryBinding
-                                                ]
-                                                |> List.choose id
+                                                nonCombinedNonBodyArgs
                                                 |> fun x -> if x.Length > 1 then Some x else None
                                                 |> Option.map ^ generateInputsCombination synt schema
                                         )
                                     |> Option.map ^ letOrUseDecl combinedInputs []
                                 
                                 let bodyBinding = "bodyArgs"
+                                let maybeBindBody =
+                                    Option.map2 (fun a b -> a,b) maybeBody maybeBodyOpenApi
+                                    |> Option.map ^ fun (bodyType, (location, schema)) ->
+                                        letBangExpr bodyBinding
+                                            (
+                                                let expr =
+                                                    match location with
+                                                    | Body contentType ->
+                                                        match contentType with
+                                                        | MediaType.Form -> "ctx.BindFormAsync"
+                                                        | MediaType.Json -> "ctx.BindJsonAsync"
+                                                        | v -> failwithf "Content type %A is not supported" v 
+                                                    | _ -> failwith "Body should be located in body, you know"
+                                                    |> longIdentExpr
+                                                let typeApp = typeApp expr [bodyType]
+                                                let call = app typeApp (tupleExpr [])
+                                                let bindCallIntoResult =
+                                                    letBangExpr bodyBinding call (returnExpr ^ app (identExpr "Ok") (identExpr bodyBinding))
+                                                let catchClause =
+                                                    [
+                                                        returnExpr (app (identExpr errInnerFormatterBindingExn) (identExpr "e"))
+                                                        ^|> identExpr errOuterBody ^|> identExpr "Error" 
+                                                        |> clause (SynPat.Named(SynPat.Wild r, ident "e", false, None, r))
+                                                    ]
+                                                taskBuilder
+                                                ^ SynExpr.TryWith(bindCallIntoResult, r, catchClause, r, r, DebugPointAtTry.Yes r, DebugPointAtWith.Yes r)
+                                            )
+                                let nonCombinedBodyArgs =
+                                    [
+                                        maybeBodyOpenApi |> Option.map fst |> Option.map (fun l -> l, bodyBinding)
+                                    ]
+                                    |> List.choose id
                                 
-                                let (nonBody, body) =
-                                    if maybeSingleNonBodyParameter.IsSome then
-                                        let binding =
-                                            match fst maybeSingleNonBodyParameterOpenApi.Value with
-                                            | Query -> queryBinding
-                                            | Path -> pathBinding
-                                            | Body _ -> failwith "impossibru"
-                                        if maybeBody.IsNone then
-                                            Some binding, None
-                                        else Some binding, Some bodyBinding
-                                    else
-                                        if maybeCombinedType.IsSome then
-                                            if maybeBody.IsNone then Some combinedInputs, None
-                                            else Some combinedInputs, Some bodyBinding
-                                        else
-                                            if maybeBody.IsNone then None, None
-                                            else None, Some bodyBinding
-
                                 let finalArgsBinding = "args"
+                                
+                                let nonBody =
+                                    nonCombinedNonBodyArgs
+                                    |> List.tryExactlyOne
+                                    |> Option.map snd
+                                    |> Option.orElse (maybeCombinedType |> Option.map (fun _ -> combinedInputs))
+                                let body = nonCombinedBodyArgs |> List.tryExactlyOne |> Option.map snd
+                                                                
+                                let maybeBindFinalArgs =
+                                    Option.map2 (fun a b -> a,b) nonBody body
+                                    |> Option.map ^ fun (nonBody, body) ->
+                                        generateBinds nonBody [body] ^ fun () -> tupleExpr [nonBody; body]
+                                    |> Option.orElse (body |> Option.orElse nonBody |> Option.map identExpr)
+                                    |> Option.map ^ letOrUseDecl finalArgsBinding []
+                                    |> Option.map ^ fun f c ->
+                                        f
+                                        ^ letOrUseDecl finalArgsBinding []
+                                            (
+                                                simpleValueMatching finalArgsBinding
+                                                    [
+                                                        "Ok", "v", app (identExpr "Ok") (identExpr "v")
+                                                        "Error", "e",
+                                                            let allRawBindings =
+                                                                nonCombinedBodyArgs
+                                                                |> Seq.append nonCombinedNonBodyArgs
+                                                                |> Seq.map snd
+                                                                |> Seq.map ^ fun result -> app (identExpr tryExtractErrorName) (identExpr result)
+                                                                |> Seq.toList
+                                                            letOrUseDecl "errs" []
+                                                                (SynExpr.ArrayOrList(false, allRawBindings, r)
+                                                                ^|> app (longIdentExpr "Seq.choose") (identExpr "id")
+                                                                ^|> longIdentExpr "Seq.toArray")
+                                                                (
+                                                                    (
+                                                                        paren
+                                                                        ^ ifElseExpr
+                                                                              (
+                                                                                  app (appI (identExpr "op_GreaterThan") (longIdentExpr "errs.Length")) (constExpr ^ SynConst.Int32 1)
+                                                                              )
+                                                                              (app (longIdentExpr "Array.head") (identExpr "errs"))
+                                                                              ^ app (identExpr errOuterCombined) (identExpr "errs")
+                                                                    ) ^|> identExpr "Error"
+                                                                )
+                                                    ]
+                                            ) c
                                 
                                 let argExpr = identExpr "ctx"
                                 
                                 let finalCall =
                                     letBangExpr                                                                                 
                                       "input"                                                                                 
-                                      (app (longIdentExpr ^ sprintf "this.%sInput" method.Name) argExpr)                      
+                                      (
+                                          let sucMethod = sprintf "this.%sInput" method.Name |> longIdentExpr
+                                          let errMethod = sprintf "this.%sInputError" method.Name |> longIdentExpr
+                                          let allRawBindings = [ nonBody; body ] |> List.choose id
+                                          if allRawBindings.Length = 0 then
+                                              app sucMethod argExpr
+                                          else
+                                              matchExpr finalArgsBinding
+                                                [
+                                                    clause (SynPat.LongIdent(longIdentWithDots "Ok", None, None, Pats <| [tuplePat allRawBindings], None, r))
+                                                    ^ app sucMethod (tupleExpr [ yield! allRawBindings; "ctx" ])
+                                                    clause (synLongPat "Error" "e")
+                                                    ^ app errMethod (tupleExpr ["e"; "ctx"])
+                                                ]
+                                      )                      
                                       (returnBang                                                                             
                                        ^ curriedCall (sprintf "this.%sOutput" method.Name) [ "input"; "next"; "ctx" ])
 
@@ -849,6 +926,8 @@ let giraffeAst (api: Api) =
                                 let finalCall =
                                     // the code below works like backpipe because each next call is applied as a callback to the previous one
                                     finalCall
+                                    |> makeCall maybeBindFinalArgs
+                                    |> makeCall maybeBindBody
                                     |> makeCall maybeBindCombined
                                     |> makeCall maybeBindPath
                                     |> makeCall maybeBindQuery
