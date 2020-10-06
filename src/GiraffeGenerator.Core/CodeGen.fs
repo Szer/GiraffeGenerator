@@ -863,37 +863,43 @@ let giraffeAst (api: Api) =
                                         generateBinds nonBody [body] ^ fun () -> tupleExpr [nonBody; body]
                                     |> Option.orElse (body |> Option.orElse nonBody |> Option.map identExpr)
                                     |> Option.map ^ letOrUseDecl finalArgsBinding []
-                                    |> Option.map ^ fun f c ->
+                                    |> Option.map ^ fun f continuation ->
                                         f
-                                        ^ letOrUseDecl finalArgsBinding []
-                                            (
-                                                simpleValueMatching finalArgsBinding
-                                                    [
-                                                        "Ok", "v", app (identExpr "Ok") (identExpr "v")
-                                                        "Error", "e",
-                                                            let allRawBindings =
-                                                                nonCombinedBodyArgs
-                                                                |> Seq.append nonCombinedNonBodyArgs
-                                                                |> Seq.map snd
-                                                                |> Seq.map ^ fun result -> app (identExpr tryExtractErrorName) (identExpr result)
-                                                                |> Seq.toList
-                                                            letOrUseDecl "errs" []
-                                                                (SynExpr.ArrayOrList(false, allRawBindings, r)
-                                                                ^|> app (longIdentExpr "Seq.choose") (identExpr "id")
-                                                                ^|> longIdentExpr "Seq.toArray")
-                                                                (
-                                                                    (
-                                                                        paren
-                                                                        ^ ifElseExpr
-                                                                              (
-                                                                                  app (appI (identExpr "op_GreaterThan") (longIdentExpr "errs.Length")) (constExpr ^ SynConst.Int32 1)
-                                                                              )
-                                                                              (app (longIdentExpr "Array.head") (identExpr "errs"))
-                                                                              ^ app (identExpr errOuterCombined) (identExpr "errs")
-                                                                    ) ^|> identExpr "Error"
-                                                                )
-                                                    ]
-                                            ) c
+                                        ^
+                                            let allRawBindings =
+                                                nonCombinedBodyArgs
+                                                |> Seq.append nonCombinedNonBodyArgs
+                                                |> Seq.map snd
+                                                |> Seq.map ^ fun result -> app (identExpr tryExtractErrorName) (identExpr result)
+                                                |> Seq.toList
+                                            if allRawBindings.Length = 1 then
+                                                continuation
+                                            else
+                                                letOrUseDecl finalArgsBinding []
+                                                    (
+                                                        simpleValueMatching finalArgsBinding
+                                                            [
+                                                                "Ok", "v", app (identExpr "Ok") (identExpr "v")
+                                                                "Error", "e",
+                                                                    let errExpr =
+                                                                        letOrUseDecl "errs" []
+                                                                            (
+                                                                                SynExpr.ArrayOrList(false, allRawBindings, r)
+                                                                                ^|> app (longIdentExpr "Seq.choose") (identExpr "id")
+                                                                                ^|> longIdentExpr "Seq.toArray"
+                                                                            )
+                                                                            (
+                                                                                paren
+                                                                                ^ ifElseExpr
+                                                                                      (
+                                                                                          app (appI (identExpr "op_GreaterThan") (longIdentExpr "errs.Length")) (constExpr ^ SynConst.Int32 1)
+                                                                                      )
+                                                                                      (app (longIdentExpr "Array.head") (identExpr "errs"))
+                                                                                      ^ app (identExpr errOuterCombined) (identExpr "errs")
+                                                                            )
+                                                                    errExpr ^|> identExpr "Error"
+                                                            ]
+                                                    ) continuation
                                 
                                 let argExpr = identExpr "ctx"
                                 
