@@ -63,6 +63,22 @@ paths:
         determined using above GET api.
       operationId: perform-search
       parameters:
+        - name: start
+          description: Starting record number. Default value is 0.
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: rows
+          description: >-
+            Specify number of rows to be returned. If you run the search
+            with default values, in the response you will see 'numFound'
+            attribute which will tell the number of records available in
+            the dataset.
+          in: query
+          schema:
+            type: integer
+            default: 100
         - name: version
           in: path
           description: Version of the dataset.
@@ -118,5 +134,3 @@ paths:
                     the dataset.
                   type: integer
                   default: 100
-              required:
-                - criteria

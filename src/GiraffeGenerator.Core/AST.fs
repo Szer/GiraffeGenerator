@@ -1,5 +1,6 @@
 module AST
 
+open System
 open FSharp.Compiler.XmlDoc
 open FSharp.Compiler.SyntaxTree
 open FSharp.Compiler.Range
@@ -327,6 +328,11 @@ let app funExpr argExpr =
 let appI funExpr argExpr =
     SynExpr.App(ExprAtomicFlag.NonAtomic, true, funExpr, argExpr, r)
 
+/// Expression for type application
+/// {a}<{b[0],b[1]...}>
+let typeApp a b =
+    SynExpr.TypeApp(a,r,b,[],None,r,r)
+
 /// Expression for Ident
 let identExpr name = SynExpr.Ident(ident name)
 
@@ -436,11 +442,19 @@ let anonRecord fieldList = SynType.AnonRecd(false, fieldList, r)
 
 /// Expression for record instance
 let recordExpr fieldsAndValues =
-    SynExpr.Record(None, None, fieldsAndValues |> List.map (fun (f, v) -> RecordFieldName (longIdentWithDots f, false), identExpr v |> Some, None), r)
+    SynExpr.Record(None, None, fieldsAndValues |> List.map (fun (f, v) -> RecordFieldName (longIdentWithDots f, false), v |> Some, None), r)
 
 /// Expression for generic type
 let genericType isPostfix name synTypes =
     SynType.App(SynType.LongIdent(longIdentWithDots name), None, synTypes, [], None, isPostfix, r)
+
+let simplePat name = SynSimplePat.Id(ident name,None,false,false,false,r)
+
+let simplePats pats = SynSimplePats.SimplePats(pats, r)
+
+let lambda pats body =
+    SynExpr.Lambda(false, false, pats, body, r)
+
 
 /// Expression for generic array type in postfix notation:
 /// {synType} array
@@ -556,6 +570,7 @@ let simpleValueMatching value cases =
             )
     matchExpr value clauses
 let inline (^|>) a b = app (appI (identExpr "op_PipeRight") a) b
+let inline (^>>) a b = paren (app (appI (identExpr "op_ComposeRight") a) b)
 
 let setStatusCodeExpr code =
     app (identExpr "setStatusCode") (intExpr code)

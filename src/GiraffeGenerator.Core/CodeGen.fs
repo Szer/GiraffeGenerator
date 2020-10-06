@@ -1,6 +1,7 @@
 module CodeGen
 
 open System.Collections.Generic
+open System.Globalization
 open AST
 open OpenApi
 open Fantomas
@@ -96,10 +97,10 @@ let primTypeMatch =
     function
     | Any -> objType
     | Int -> intType
-    | Long -> int64Type
-    | Double -> doubleType
+    | PrimTypeKind.Long -> int64Type
+    | PrimTypeKind.Double -> doubleType
     | Bool -> boolType
-    | String strFormat -> strFormatMatch strFormat
+    | PrimTypeKind.String strFormat -> strFormatMatch strFormat
 
 /// matching type kinds in responses to create their syntatic types
 let rec extractResponseSynType =
@@ -113,7 +114,7 @@ let rec extractResponseSynType =
         let fields =
             anonObject.Properties
             |> List.map
-            ^ fun (name, typeKind) -> AST.ident name, extractResponseSynType typeKind
+            ^ fun (name, typeKind, def) -> AST.ident name, extractResponseSynType typeKind
 
         if fields.IsEmpty then objType else anonRecord fields
     | DU du -> synType du.Name
@@ -156,7 +157,7 @@ let extractRecords (schemas: TypeSchema list) =
             // extract field types
             let fields =
                 objectKind.Properties
-                |> List.map (fun (fieldName, fieldKind) ->
+                |> List.map (fun (fieldName, fieldKind, def) ->
                     extractSynType (fieldName, fieldKind)
                     |> field fieldName)
 
@@ -207,6 +208,10 @@ let extractRecords (schemas: TypeSchema list) =
     dus
     |> Seq.append records
     |> Seq.toList
+
+let requestCommonInputTypeName (method: PathMethodCall) = method.Name + method.Method + "Input"
+let sourceSorting (source: PayloadLocation) = source = Path, source = Query, source = Body(Json), source = Body(Form)
+let isNotBody = function | Body _ -> false | _ -> true
 
 /// Creating whole module AST for Giraffe webapp
 let giraffeAst (api: Api) =
@@ -402,8 +407,8 @@ let giraffeAst (api: Api) =
                                             (
                                                 recordExpr
                                                     [
-                                                        "TypeName", "typeName"
-                                                        "PropertyPath", "path"
+                                                        "TypeName", identExpr "typeName"
+                                                        "PropertyPath", identExpr "path"
                                                     ]
                                             )
                                     )
@@ -450,7 +455,7 @@ let giraffeAst (api: Api) =
                               let locationNameMapping =
                                 method.Parameters.Value
                                 |> Map.toSeq
-                                |> Seq.filter (fst >> (function | Body _ -> false | _ -> true))
+                                |> Seq.filter (fst >> isNotBody)
                                 |> Seq.collect
                                      (
                                          fun (key, value) ->
@@ -475,8 +480,7 @@ let giraffeAst (api: Api) =
                                                      |> Seq.filter ((<>) 1)
                                                      |> Seq.length
                                                  if unnameableCount > 0 then
-                                                     let err = sprintf "Unable to generate distinct input property name: property \"%s\" is duplicated by location and type" name
-                                                     failwith err
+                                                     failwithf "Unable to generate distinct input property name: property \"%s\" is duplicated by location" name
                                                  locations |> Seq.map (fun loc -> loc, (name, name + "From" +  (loc.ToString())))
                                      )
                                  |> Seq.groupBy fst
@@ -485,11 +489,61 @@ let giraffeAst (api: Api) =
                               (method.Method, method.Name), locationNameMapping
                           
               } |> Map
+          
+          let combinedInputTypeNames =
+              api.Paths
+              |> Seq.collect (fun x -> x.Methods)
+              |> Seq.choose
+                  (
+                      fun m ->
+                          m.Parameters
+                          |> Option.filter
+                              (
+                                  fun p ->
+                                      p
+                                      |> Map.toSeq
+                                      |> Seq.map fst
+                                      |> Seq.filter isNotBody
+                                      |> Seq.length > 1
+                              )
+                          |> Option.map (fun _ -> (m.Method, m.Name), requestCommonInputTypeName m)
+                  )
+              |> Map
 
           let allSchemas =
               [ for path in api.Paths do
                   for method in path.Methods do
-                      if method.Parameters.IsSome then method.Parameters.Value
+                      if method.Parameters.IsSome then
+                        for KeyValue(_, schema) in method.Parameters.Value do
+                            schema
+                        if method.Parameters.Value |> Map.toSeq |> Seq.map fst |> Seq.filter isNotBody |> Seq.length > 1 then
+                            let mapping = parametersLocationNameMapping |> Map.find (method.Method, method.Name)
+                            let name = combinedInputTypeNames |> Map.find (method.Method, method.Name)
+                            { // generate combined input record from every source of input 
+                                Name = name
+                                DefaultValue = None
+                                Docs = None
+                                Kind =
+                                    {
+                                        Name = Some name
+                                        Docs = None
+                                        Properties =
+                                            method.Parameters.Value
+                                            |> Map.toSeq
+                                            |> Seq.filter (fst >> isNotBody)
+                                            |> Seq.collect
+                                                (
+                                                    fun (location, schema) ->
+                                                        let mapping = mapping |> Map.find location
+                                                        match schema.Kind with
+                                                        | Object o ->
+                                                            [for name, kind, def in o.Properties do
+                                                                mapping |> Map.find name, kind, def]
+                                                        | _ -> [mapping |> Map.find (getOwnName schema.Kind ^ fun () -> schema.Name), schema.Kind, schema.DefaultValue]
+                                                )
+                                            |> Seq.toList
+                                    } |> TypeKind.Object
+                            }
                 yield! api.Schemas ]
 
           if not allSchemas.IsEmpty then types (extractRecords allSchemas)
@@ -501,22 +555,118 @@ let giraffeAst (api: Api) =
                       let responseTypes =
                           [ for response in method.Responses do
                               extractResponseSynType response.Kind ]
-
-                      let maybeParams =
-                          method.Parameters
-                          |> Option.map (fun param -> extractResponseSynType param.Kind)
                       
+                      // multiple non-body input sources should be combined
+                      let combinedTypeName = combinedInputTypeNames |> Map.tryFind (method.Method, method.Name)
+                      let maybeCombinedTypeOpenApi =
+                          combinedTypeName |> Option.map ^ fun nm ->
+                            allSchemas |> List.find (fun x -> x.Name = nm)  
+                      let maybeCombinedType =
+                          maybeCombinedTypeOpenApi
+                          |> Option.map (fun tp -> tp.Kind |> extractResponseSynType)
+                          
+                      // ...but there may be only one non-body source for which there's no point in generating "combined" type
+                      let maybeSingleNonBodyParameterOpenApi =
+                          method.Parameters
+                          |> Option.bind (fun p -> p |> Map.toSeq |> Seq.filter (fst >> isNotBody) |> Seq.tryExactlyOne)
+                      let maybeSingleNonBodyParameter =
+                          maybeSingleNonBodyParameterOpenApi
+                          |> Option.map snd
+                          |> Option.map (fun x -> x.Kind |> extractResponseSynType)
+                          
+                      // ...and body should be passed as a separate parameter. TODO: Body binding into DU case per content-type
+                      let maybeBodyOpenApi =
+                          method.Parameters
+                          |> Option.bind (fun p -> p |> Map.toSeq |> Seq.filter (fst >> isNotBody >> not) |> Seq.tryExactlyOne)
+                      let maybeBody =
+                          maybeBodyOpenApi
+                          |> Option.map snd
+                          |> Option.map (fun x -> x.Kind |> extractResponseSynType)
+                          
+                      let maybePathOpenApi =
+                          method.Parameters
+                          |> Option.bind ^ fun p ->
+                              p
+                              |> Map.toSeq
+                              |> Seq.filter (fst >> ((=) Path))
+                              |> Seq.map snd
+                              |> Seq.tryExactlyOne
+                      let maybePath = maybePathOpenApi |> Option.map (fun x -> x.Kind |> extractResponseSynType)
+                          
+                      let maybeNonBody = maybeCombinedType |> Option.orElse maybeSingleNonBodyParameter
+                          
+                      let maybeParams =
+                          maybeBody
+                          |> Option.map2 (fun a b -> [a; b]) maybeNonBody
+                          |> Option.map tuple
+                          |> Option.orElse maybeBody
+                          |> Option.orElse maybeNonBody
+
                       // emitting httpHandler abstract method or property
-                      maybeParams
-                      |> Option.map ^ fun param ->
+                      maybePath
+                      |> Option.map ^ fun pathParam ->
                              // <summary>{method.Docs}</summary>
-                             // abstract {method.Name}: {param} -> HttpHandler  
-                             abstractMemberDfn (xml method.Docs) method.Name (param ^-> synType "HttpHandler")
+                             // abstract {method.Name}: {pathParam} -> HttpHandler  
+                             abstractMemberDfn (xml method.Docs) method.Name (pathParam ^-> synType "HttpHandler")
                       |> Option.defaultWith ^ fun _ ->
                              // <summary>{method.Docs}</summary>
                              // abstract {method.Name}: HttpHandler
                              abstractGetterDfn (xml method.Docs) method.Name (synType "HttpHandler")
 
+                      let rec defaultToExpr v =
+                          let inline cnst syn v =
+                              constExpr (syn v)
+                          match v with
+                          | DefaultableKind.Boolean b -> cnst SynConst.Bool b
+                          | DefaultableKind.Date d ->
+                              let components =
+                                  [
+                                      d.Year
+                                      d.Month
+                                      d.Day
+                                  ] |> List.map (cnst SynConst.Int32)
+                              app (longIdentExpr "System.DateTime") (tupleComplexExpr components)
+                          | DefaultableKind.Double d -> cnst SynConst.Double d
+                          | DefaultableKind.Guid g ->
+                              let gString = g.ToString("D", CultureInfo.InvariantCulture)
+                              app (longIdentExpr "System.Guid.ParseExact") (tupleComplexExpr [strExpr gString; strExpr "D"])
+                          | DefaultableKind.Integer i -> cnst SynConst.Int32 i
+                          | DefaultableKind.Long l -> cnst SynConst.Int64 l
+                          | DefaultableKind.String s -> strExpr s
+                          | DefaultableKind.Uri u ->
+                              let uString = u.ToString()
+                              app (longIdentExpr "System.Uri") (strExpr uString)
+                          | DefaultableKind.DateTime dt ->
+                              let dtTicks = dt.DateTime.Ticks |> DefaultableKind.Long |> defaultToExpr
+                              let tsTicks = dt.Offset.Ticks |> DefaultableKind.Long |> defaultToExpr
+                              let ts = app (longIdentExpr "System.TimeSpan.FromTicks") (tupleComplexExpr [ tsTicks ])
+                              app (longIdentExpr "System.DateTimeOffset") (tupleComplexExpr [ dtTicks; ts ])
+                      
+                      let rec generateDefaultRecordMapping instanceName source =
+                          let source = match source with TypeKind.Object o -> o | _ -> failwith "source should be an object"
+                          recordExpr
+                              [
+                                  for name, kind, def in source.Properties do
+                                      let propPath = instanceName + "." + name
+                                      let indented = longIdentExpr propPath
+                                      match kind with
+                                      | TypeKind.Object _ ->
+                                          name, generateDefaultRecordMapping propPath kind
+                                      | TypeKind.Option _ ->
+                                          if def.IsSome then
+                                              name, indented ^|> app (longIdentExpr "Option.defaultValue") (defaultToExpr def.Value)
+                                          else name, indented
+                                      | _ -> name, indented
+                              ]
+                      
+                      let generateDefaultMappingFun source outType =
+                          let param = "src"
+                          let recordExpr = generateDefaultRecordMapping param source
+                          let bindWithTypeAndReturn =
+                              letOrUseComplexDecl (SynPat.Typed(SynPat.Named(SynPat.Wild r, ident "v", false, None, r), outType, r))
+                                  recordExpr (identExpr "v")
+                          lambda (simplePats [simplePat param]) bindWithTypeAndReturn |> paren
+                      
                       if not responseTypes.IsEmpty then
                           // Choice<{responseTypes[0]}, {responseTypes[1]}, ...>
                           // Or {responseType}
@@ -524,52 +674,126 @@ let giraffeAst (api: Api) =
                               if responseTypes.Length > 1
                               then choiceOf responseTypes
                               else responseTypes.Head
-
-                          let fullReturnType =
+                              
+                          let fullInputReturnType =
                               maybeParams
                               // ({param} * HttpContext)
                               |> Option.map (fun param -> tuple [ param; synType "HttpContext" ])
                               // HttpContext
                               |> Option.defaultValue (synType "HttpContext")
-                              
+                             
+                          let rec generateOptionalType kind def =
+                              match kind with
+                              | TypeKind.Object o ->
+                                  let mutable hasPropertiesWithDefault = false
+                                  let kind =
+                                      {
+                                          o with
+                                              Name = None
+                                              Properties =
+                                                  o.Properties
+                                                  |> List.map ^ fun (name, kind, def) ->
+                                                      let (hasDefault, kind) = generateOptionalType kind def
+                                                      if hasDefault then
+                                                          hasPropertiesWithDefault <- true
+                                                      name, kind, def
+                                      }
+                                      |> TypeKind.Object
+                                  hasPropertiesWithDefault, kind
+                              | v ->
+                                  let isDefaultable = Option.isSome def
+                                  isDefaultable, if isDefaultable then TypeKind.Option v else v
                           // helper for emitting:                                                                             
                           // override {implDefn} = fun next ctx ->task {                                                      
-                          //     let! input = this.{method.Name}Input {argExpr}                                               
+                          //     (*optional*) let query = ctx.TryBindQuery<TQuery>()
+                          //     let! input = this.{method.Name}Input {argExpr}
                           //     return! this.{method.Name}Output input next ctx                                              
                           // }                                                                                                
-                          let defaultImplementationEmitter implDefn argExpr =                                                 
-                                implDefn                                                                                      
-                                ^ lambdaFunNextCtxExpr                                                                        
-                                ^ taskBuilder                                                                                 
-                                ^ letBangExpr                                                                                 
+                          let defaultImplementationEmitter implDefn maybePath =
+                                let maybeQuery =
+                                    method.Parameters
+                                    |> Option.bind (fun x -> x |> Map.toSeq |> Seq.filter (fst >> ((=) Query)) |> Seq.map snd |> Seq.tryExactlyOne)
+                                let maybeQueryBindingType =
+                                    maybeQuery
+                                    |> Option.map ^ fun q ->
+                                        let (differs, kind) = generateOptionalType q.Kind q.DefaultValue
+                                        differs, (kind, q)
+                                    
+                                let appResultMap = app (longIdentExpr "Result.map")
+                                let appResultBind = app (longIdentExpr "Result.bind")
+                                let appResultMapError = app (longIdentExpr "Result.mapError")
+                                    
+                                let queryBinding = "queryArgs"
+                                let maybeBindQuery =
+                                    maybeQueryBindingType
+                                    |> Option.map ^ fun (bindingTypeDiffersFromQueryType, (bindingKind, querySchema)) ->
+                                        letOrUseDecl queryBinding []
+                                            (
+                                                let bindRaw =
+                                                    app
+                                                        (typeApp (longIdentExpr "ctx.TryBindQueryString") [extractResponseSynType bindingKind])
+                                                        (longIdentExpr "System.Globalization.CultureInfo.InvariantCulture")
+                                                    ^|> appResultMapError (identExpr errInnerGiraffeBinding ^>> identExpr errOuterQuery)
+                                                if not bindingTypeDiffersFromQueryType then
+                                                    bindRaw
+                                                else
+                                                    bindRaw
+                                                    ^|> appResultMap (generateDefaultMappingFun bindingKind (extractResponseSynType querySchema.Kind))
+                                            )
+
+                                let argExpr =
+                                    if maybeSingleNonBodyParameter.IsSome && maybeBody.IsNone && maybeBindQuery.IsSome then
+                                        tupleExpr [ queryBinding; "ctx" ]
+                                    else identExpr "ctx"
+                                    
+                                let finalCall =
+                                    letBangExpr                                                                                 
                                       "input"                                                                                 
                                       (app (longIdentExpr ^ sprintf "this.%sInput" method.Name) argExpr)                      
                                       (returnBang                                                                             
-                                       ^ curriedCall (sprintf "this.%sOutput" method.Name) [ "input"; "next"; "ctx" ])            
+                                       ^ curriedCall (sprintf "this.%sOutput" method.Name) [ "input"; "next"; "ctx" ])
+
+                                let finalCall =
+                                    maybeBindQuery
+                                    |> Option.map (fun b -> b ^ finalCall)
+                                    |> Option.defaultValue finalCall
+
+                                implDefn                                                                                      
+                                ^ lambdaFunNextCtxExpr                                                                        
+                                ^ taskBuilder                                                                                 
+                                ^ finalCall
                                   
-                          // emitting httpHandler default implementation method or property        
-                          maybeParams
-                          |> Option.map ^ fun _ ->
-                                // override this.{method.Name} args = fun next ctx ->task {
-                                //     let! input = this.{method.Name}Input(args, ctx)
-                                //     return! this.{method.Name}Output input next ctx
-                                // }
-                                defaultImplementationEmitter
-                                    (methodImplDefn method.Name ["args"])
-                                    (tupleExpr ["args"; "ctx"])
-                          |> Option.defaultWith ^ fun _ ->
-                                // override this.{method.Name} = fun next ctx ->task {
-                                //     let! input = this.{method.Name}Input ctx
-                                //     return! this.{method.Name}Output input next ctx
-                                // }
-                                defaultImplementationEmitter
-                                    (methodImplDefn method.Name [])
-                                    (identExpr "ctx")
-                                    
-                          let a = 1
+                          // emitting httpHandler default implementation method or property
+                          let defaultHttpHandler =        
+                              maybePath
+                              |> Option.map ^ fun _ ->
+                                    // override this.{method.Name} pathArgs = fun next ctx ->task {
+                                    //     let! input = this.{method.Name}Input(args, ctx)
+                                    //     return! this.{method.Name}Output input next ctx
+                                    // }
+                                    defaultImplementationEmitter
+                                        (methodImplDefn method.Name ["pathArgs"])
+                              |> Option.defaultWith ^ fun _ ->
+                                    // override this.{method.Name} = fun next ctx ->task {
+                                    //     let! input = this.{method.Name}Input ctx
+                                    //     return! this.{method.Name}Output input next ctx
+                                    // }
+                                    defaultImplementationEmitter
+                                        (methodImplDefn method.Name [])
+                          defaultHttpHandler maybePathOpenApi
                           
                           // abstract {method.Name}Input: {fullReturnType} -> Task<{returnType}>
-                          abstractMemberDfn xmlEmpty (method.Name + "Input") (fullReturnType ^-> taskOf [ returnType ])
+                          abstractMemberDfn xmlEmpty (method.Name + "Input") (fullInputReturnType ^-> taskOf [ returnType ])
+                          if maybeParams.IsSome then
+                              let errorHandlerName = method.Name + "InputError"
+                              // abstract {method.Name}InputError: error * HttpContext -> Task<{returnType}>
+                              abstractMemberDfn xmlEmpty errorHandlerName (tuple [synType errOuterTypeName; synType "HttpContext"] ^-> taskOf [ returnType ])
+                              methodImplDefn errorHandlerName ["t"]
+                                (
+                                    letOrUseComplexDecl (tuplePat ["err"; "http"]) (identExpr "t")
+                                    ^ letOrUseDecl "err" [] (app (app (identExpr outerErrToStringName) (constExpr <| SynConst.Int32 0)) (identExpr "err"))
+                                    ^ app (typeApp (longIdentExpr "Task.FromException") [returnType]) (paren <| app (identExpr "exn") ("err" |> identExpr))
+                                )
                           // abstract {method.Name}Output: {returnType} -> HttpHandler
                           abstractMemberDfn xmlEmpty (method.Name + "Output") (returnType ^-> synType "HttpHandler")
                           
@@ -580,6 +804,7 @@ let giraffeAst (api: Api) =
                                     match response.MediaType with
                                     | Json
                                     | NotSpecified -> app (identExpr "json" ) (identExpr inputBinding)
+                                    | Form -> app (identExpr "form" ) (identExpr inputBinding)
                                     | Other x -> failwithf "Emitting of code for media type %s currently not supported" x
                                 
                                 if response.Code = 200

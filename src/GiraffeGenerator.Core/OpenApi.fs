@@ -1,5 +1,6 @@
 module OpenApi
 
+open System
 open Microsoft.OpenApi.Any
 open Microsoft.OpenApi.Models
 open Microsoft.OpenApi.Readers
@@ -235,6 +236,7 @@ and TypeSchema =
 /// Supported response media types
 type MediaType =
     | Json
+    | Form
     | NotSpecified
     | Other of string
 
@@ -244,12 +246,26 @@ type Response =
       MediaType: MediaType
       Kind: TypeKind }
 
+/// Source of binding
+type PayloadLocation =
+    | Body of MediaType
+    // TODO: Cookie
+    | Path
+    | Query
+    // TODO Header
+    with
+        static member FromParameterLocation =
+            function
+            | ParameterLocation.Query -> Query
+            | ParameterLocation.Path -> Path
+            | _ -> Query
+
 /// Endpoint call with name (should be unique across whole API at the moment) and method attached
 type PathMethodCall =
     { Method: string
       Name: string
       Responses: Response list
-      Parameters: TypeSchema option
+      Parameters: Map<PayloadLocation, TypeSchema> option
       Docs: Docs option }
 
 /// Representation of OpenApi path with methods attach
@@ -281,6 +297,7 @@ let inline private parseCode x =
 let inline private parseMediaType x =
     match trimLower x with
     | Some "application/json" -> Json
+    | Some "application/x-www-form-urlencoded" -> MediaType.Form
     | Some x -> Other x
     | None -> failwith "Media type can't be null!"
     
@@ -289,7 +306,7 @@ let private parseResponses (operation: OpenApiOperation) =
         for KeyValue(mediaType, content) in response.Content do
             yield { Code = parseCode code
                     MediaType = parseMediaType mediaType
-                    Kind = TypeKind.Parse content.Schema } ]
+                    Kind = TypeKind.Parse content.Schema |> fst } ]
 
 let private normalizeName =
     let regex = Regex("[_\.-]([a-z])", RegexOptions.Compiled)
@@ -324,10 +341,44 @@ let parse (doc: OpenApiDocument): Api =
                         |> Option.orElse operationParameters
                         |> Option.orElse pathParameters
                     let parameters =
-                        Option.ofObj op.Parameters
-                        |> Option.filter (fun x -> x.Count > 0)
-                        |> Option.map (fun parameters ->
-                            TypeSchema.Parse(methodName + opName, parameters))
+                        allParameters
+                        |> Option.filter (fun x -> x.Length > 0)
+                        |> Option.map
+                            (fun parameters ->
+                                parameters
+                                |> Seq.groupBy (fun x -> Option.ofNullable x.In |> Option.defaultValue ParameterLocation.Query |> PayloadLocation.FromParameterLocation)
+                                |> Seq.map (fun (location, parameters) ->
+                                    location, TypeSchema.Parse(methodName + opName + location.ToString(), parameters))
+                            )
+                    let bodyParameters =
+                        op.RequestBody
+                        |> Option.ofObj
+                        |> Option.map
+                            (
+                                fun rb ->
+                                    rb.Content
+                                    |> Seq.map
+                                        (
+                                           fun (KeyValue(mt, body)) ->
+                                               let mediaType = parseMediaType mt
+                                               let name = methodName + opName + "Body" + mediaType.ToString()
+                                               let schema = TypeSchema.Parse(name, body.Schema)
+                                               let schema =
+                                                   {
+                                                       schema with
+                                                           Kind =
+                                                               match schema.Kind with
+                                                               | TypeKind.Object o -> TypeKind.Object { o with Name = Some name }
+                                                               | v -> v
+                                                   }
+                                               Body mediaType, schema
+                                        )
+                            )
+                    let allParameters =
+                        Option.map2 Seq.append parameters bodyParameters
+                        |> Option.orElse parameters
+                        |> Option.orElse bodyParameters
+                        |> Option.map Map
                         
                     let responses =
                         [ for KeyValue(code, response) in op.Responses do
