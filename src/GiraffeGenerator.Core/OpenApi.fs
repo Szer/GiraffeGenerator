@@ -75,20 +75,83 @@ type PrimTypeKind =
         | Some "boolean", _ -> Bool
         | Some "string", maybeStringFormat -> String(StringFormat.Parse maybeStringFormat)
         | _ -> failwithf "Unexpected type: %s and format: %A" typeKind format
+        
+    member s.GetDefaultLiteral (value: IOpenApiPrimitive) =
+        let fw t = sprintf "%s literal has been found for non-%s type" t t |> failwith
+        let inline oneWay kind (value: ^v) (toDefault: ^t -> DefaultableKind) =
+            match s with
+            | x when x = kind ->
+                let v = (^v:(member Value: ^t) value)
+                toDefault v
+            | _ -> fw (value.GetType().Name)
+            
+        match value with
+        | :? OpenApiInteger as int ->
+            match s with
+            | Int -> DefaultableKind.Integer int.Value
+            | Long -> DefaultableKind.Long (int64 int.Value)
+            | _ -> fw "integer"
+        | :? OpenApiLong as long ->
+            match s with
+            | Int ->  DefaultableKind.Long (int64 long.Value) 
+            | Long -> DefaultableKind.Long long.Value
+            | _ -> fw "int64"
+        | :? OpenApiDouble as double -> oneWay Double double DefaultableKind.Double
+        | :? OpenApiBoolean as bool -> oneWay Bool bool DefaultableKind.Boolean
+        | :? OpenApiDateTime as dateTime -> oneWay (String DateTimeString) dateTime DefaultableKind.DateTime
+        | :? OpenApiDate as date -> oneWay (String DateString) date DefaultableKind.Date
+        | :? OpenApiString as str ->
+            match s with
+            | String s ->
+                let inline oneWay x = oneWay (String s) x
+                match s with
+                | PasswordString
+                | StringFormat.String -> oneWay str DefaultableKind.String
+                | Custom "uri"
+                | Custom "uriref" -> oneWay {| Value = System.Uri str.Value |} DefaultableKind.Uri
+                | Custom "uuid"
+                | Custom "guid"
+                | Custom "uid" -> oneWay {| Value = Guid.Parse str.Value |} DefaultableKind.Guid
+                | _ -> oneWay str DefaultableKind.String
+            | _ -> fw "string"
+        | v -> failwith (sprintf "%A literals aren't supported for kind %A" v s)
+
+and DefaultableKind =
+    | String of string
+    | Integer of int
+    | Long of int64
+    | Date of DateTime
+    | DateTime of DateTimeOffset
+    | Double of double
+    | Boolean of bool
+    | Uri of Uri
+    | Guid of Guid
 
 /// IR for object schemas
 and ObjectKind =
     { Name: string option
-      Properties: (string * TypeKind) list
+      Properties: (string * TypeKind * Option<DefaultableKind>) list
       Docs: Docs option }
+    
+    static member private OptionIfNotRequired isRequired kind =
+        if isRequired then kind
+        else
+            match kind with
+            | TypeKind.Option v -> TypeKind.Option v
+            | v -> TypeKind.Option v 
+    
     static member Create(schema: OpenApiSchema) =
         let name =
             Option.ofObj schema.Reference
             |> Option.map (fun x -> x.Id)
             |> Option.orElseWith(fun _ -> Option.ofObj schema.Title)
         let fields =
-            [ for KeyValue(typeName, internalSchema) in schema.Properties ->
-                typeName, TypeKind.Parse internalSchema ]
+            [
+                for KeyValue(typeName, internalSchema) in schema.Properties ->
+                    let internalType, def = TypeKind.Parse internalSchema
+                    let internalType = ObjectKind.OptionIfNotRequired (schema.Required.Contains typeName || def.IsSome) internalType
+                    typeName, internalType, def
+            ]
         
         { Name = name
           Properties = fields
@@ -97,54 +160,76 @@ and ObjectKind =
     static member Create(name: string, parameters: OpenApiParameter seq) =
         let fields =
             [ for param in parameters ->
-                param.Name, TypeKind.Parse param.Schema ]
+                let kind, def = TypeKind.Parse param.Schema
+                let kind = ObjectKind.OptionIfNotRequired (param.Required || def.IsSome) kind
+                param.Name, kind, def ]
             
         { Name = Some name
           Properties = fields
           Docs = None }
-
+and DUCaseKind =
+    {
+        Docs: Docs option
+        CaseName: string option
+        Kind: TypeKind
+    }
+and DUKind =
+    {
+        Name: string
+        Cases: DUCaseKind list
+        Docs: Docs option
+    }
 /// Kind of types for fields in schemas
-/// Either primitive or Array<T> or Option<T> or Object with properties
+/// Either primitive or Array<T> or Option<T> or Object with properties or DU
 /// Array, Option and Object could recursively contains similar types
 and TypeKind =
     | Prim of PrimTypeKind
     | Array of TypeKind
     | Option of TypeKind
     | Object of ObjectKind
+    | DU of DUKind
+    | BuiltIn of string
     | NoType
-    static member Parse(schema: OpenApiSchema): TypeKind =
-        
-        if isNull schema then Prim PrimTypeKind.Any else
-
-        let kind =
-            match schema with
-            | ArrayKind items ->
-                TypeKind.Parse items
-                |> Array
-            | ObjectKind schema ->
-                ObjectKind.Create(schema)
-                |> Object
-            | PrimKind primType ->
-                PrimTypeKind.Parse(primType, schema.Format)
-                |> Prim
-
-        if schema.Nullable then
-            Option kind
-        else kind
+    static member Parse(schema: OpenApiSchema): TypeKind * DefaultableKind option =
+        if isNull schema then Prim PrimTypeKind.Any, None
+        else
+            let kind, def =
+                match schema with
+                | ArrayKind items ->
+                    let arrItm, def = TypeKind.Parse items
+                    if def.IsSome then
+                        failwith "Default values aren't supported for array items"
+                    else Array arrItm, None
+                | ObjectKind schema ->
+                    if schema.Default <> null then
+                        failwith "Default values aren't supported for entire objects"
+                    else
+                        ObjectKind.Create(schema) |> Object, None
+                | PrimKind primType ->
+                    let prim = PrimTypeKind.Parse(primType, schema.Format)
+                    let def = schema.Default |> Option.ofObj |> Option.map (fun x -> x:?>IOpenApiPrimitive) |> Option.map prim.GetDefaultLiteral
+                    Prim prim, def
+            if schema.Nullable && def.IsNone then
+                (Option kind), None
+            else kind, def
 
 /// Representation of schema from OpenAPI
 and TypeSchema =
     { Name: string
       Kind: TypeKind
-      Docs: Docs option }
+      Docs: Docs option
+      DefaultValue: DefaultableKind option }
     static member Parse(name, schema: OpenApiSchema): TypeSchema =
+        let kind, def = TypeKind.Parse schema
         { Name = name
-          Kind = TypeKind.Parse schema
+          Kind = kind
+          DefaultValue = def
           Docs = Docs.Create(schema.Description, null, schema.Example) }
         
     static member Parse(name, parameters: OpenApiParameter seq): TypeSchema =
         { Name = name
           Kind = TypeKind.Object (ObjectKind.Create (name, parameters))
+          DefaultValue = None
           Docs = None }
 
 /// Supported response media types
@@ -232,6 +317,12 @@ let parse (doc: OpenApiDocument): Api =
                     let methodName = normalizeName (string method)
                     let opName = normalizeName op.OperationId
                     
+                    let pathParameters = Option.ofObj path.Parameters |> Option.map Seq.toArray
+                    let operationParameters = Option.ofObj op.Parameters |> Option.map Seq.toArray
+                    let allParameters =
+                        Option.map2 Array.append pathParameters operationParameters
+                        |> Option.orElse operationParameters
+                        |> Option.orElse pathParameters
                     let parameters =
                         Option.ofObj op.Parameters
                         |> Option.filter (fun x -> x.Count > 0)
@@ -244,7 +335,7 @@ let parse (doc: OpenApiDocument): Api =
                                 for KeyValue(mediaType, content) in response.Content do
                                     { Code = parseCode code
                                       MediaType = parseMediaType mediaType
-                                      Kind = TypeKind.Parse content.Schema }
+                                      Kind = TypeKind.Parse content.Schema |> fst }
                             else
                                 { Code = parseCode code
                                   MediaType = NotSpecified
@@ -256,7 +347,7 @@ let parse (doc: OpenApiDocument): Api =
                     { Method = methodName
                       Name = opName
                       Responses = responses
-                      Parameters = parameters
+                      Parameters = allParameters
                       Docs = Docs.Create(op.Description, op.Summary, null) } ]
                 
             yield { Route = route

@@ -48,3 +48,15 @@ components:
               apiHash:
                 type: string
                 format: byte
+            required:
+              - apiKey
+              - apiVersionNumber
+              - apiUrl
+              - apiCount
+              - apiAvg
+              - isInternal
+              - start
+              - apiHash
+      required:
+        - total
+        - apis

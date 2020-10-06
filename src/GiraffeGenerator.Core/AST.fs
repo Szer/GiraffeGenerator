@@ -197,26 +197,40 @@ let lambdaFunNextCtxExpr expr =
               r),
          r)
 
+/// Let declaration
+/// E.g. let {recursive} {name} {parameters}: retType = {expr}
+let letDecl recursive name parameters retType expr =
+    let retType = retType |> Option.map (longIdentWithDots >> SynType.LongIdent)
+    SynModuleDecl.Let
+        (
+            recursive,
+            [
+                SynBinding.Binding
+                    (
+                        None,
+                        SynBindingKind.NormalBinding,
+                        false,
+                        false,
+                        [],
+                        PreXmlDocEmpty,
+                        SynValData.SynValData(None, curriedArgs parameters, None),
+                        SynPat.LongIdent(longIdentWithDots name, None, None, parameters |> List.map (fun p -> SynPat.Named(SynPat.Wild(r), ident p, false, None, r)) |> Pats, None, r),
+                        retType |> Option.map (fun retType -> (SynBindingReturnInfo(retType, r, []))),
+                        retType
+                            |> Option.map (fun retType -> SynExpr.Typed(expr, retType, r))
+                            |> Option.defaultValue expr,
+                        r,
+                        NoDebugPointAtLetBinding
+                    )
+            ],
+            r
+        )
+
 /// Let declaration for Giraffe HttpHandler with specified name and body expression
 /// E.g.:
 /// let {NAME}: HttpHandler = fun next ctx -> {EXPR}
 let letHttpHandlerDecl name expr =
-    SynModuleDecl.Let
-        (false,
-         [ SynBinding.Binding
-             (None,
-              SynBindingKind.NormalBinding,
-              false,
-              false,
-              [],
-              PreXmlDoc.Empty,
-              SynValData.SynValData(None, curriedArgs [ "next"; "ctx" ], None),
-              SynPat.Named(SynPat.Wild(r), ident name, false, None, r),
-              Some(SynBindingReturnInfo.SynBindingReturnInfo(SynType.LongIdent(longIdentWithDots "HttpHandler"), r, [])),
-              SynExpr.Typed(lambdaFunNextCtxExpr expr, SynType.LongIdent(longIdentWithDots "HttpHandler"), r),
-              r,
-              NoDebugPointAtLetBinding) ],
-         r)
+    letDecl false name [] (Some "HttpHandler") (lambdaFunNextCtxExpr expr)
 
 /// Expression for calling:
 /// ctx.GetService<Service>()
@@ -236,8 +250,8 @@ let getServiceCall =
          r)
 
 /// Let expression with continuation for calling:
-/// let service = ctx.GetService<Service>() in {NEXT}
-let letGetServiceDecl next =
+/// let {binding} = {body} in {next}
+let letOrUseComplexDecl binding body next =
     SynExpr.LetOrUse
         (false,
          false,
@@ -249,13 +263,31 @@ let letGetServiceDecl next =
               [],
               PreXmlDoc.Empty,
               SynValData(None, emptyMethodVal, None),
-              SynPat.Named(SynPat.Wild(r), ident "service", false, None, r),
+              binding,
               None,
-              getServiceCall,
+              body,
               r,
               DebugPointAtBinding(r)) ],
          next,
          r)
+let letOrUseComplexParametersDecl name parameters body next =
+    letOrUseComplexDecl
+        (SynPat.LongIdent(longIdentWithDots name, None, None, parameters, None, r))
+        body
+        next
+/// Let expression with continuation for calling:
+/// let {name} {parameters} = {body} in {next}
+let letOrUseDecl name parameters body next =
+    letOrUseComplexParametersDecl
+        name
+        (parameters |> List.map (fun p -> SynPat.Named(SynPat.Wild(r), ident p, false, None, r)) |> Pats)
+        body
+        next
+
+/// Let expression with continuation for calling:
+/// let service = ctx.GetService<Service>() in {NEXT}
+let letGetServiceDecl next =
+    letOrUseDecl "service" [] getServiceCall next
 
 /// LetBang! expression:
 /// let! {ident} = {expr} in {next}
@@ -335,9 +367,22 @@ let chooseExpr exprList =
 let (>=>) e1 e2 =
     app (appI (identExpr "op_GreaterEqualsGreater") e1) e2
 
+/// Parenthesizes expression
+let paren expr =
+    SynExpr.Paren(expr, expr.Range.StartRange, Some expr.Range.EndRange, expr.Range)
+
+
+let constExpr value =
+    SynExpr.Const(value, r)
+    
 /// Constant string expression
 let strExpr str =
-    SynExpr.Const(SynConst.String(str, r), r)
+    constExpr (SynConst.String(str, r))
+
+
+let sprintfExpr pattern args =
+    let initial = app (identExpr "sprintf") (strExpr pattern)
+    args |> Seq.fold app initial
 
 /// Application expression for Giraffe route function
 /// route {route}
@@ -360,8 +405,33 @@ let record xml name fieldList =
          [],
          r)
 
-/// Expression for anonymous record with fields
+/// Expression for discriminated unions
+let discriminatedUnion xml name cases =
+    let cases =
+        cases
+        |> List.map
+           (
+               fun (name, kind, xml) ->
+                   SynUnionCase.UnionCase
+                       (
+                           SynAttributes.Empty,
+                           ident name,
+                           SynUnionCaseType.UnionCaseFields [ SynField.Field(SynAttributes.Empty, false, None, kind, false, xmlEmpty, None, r) ],
+                           xml,
+                           None,
+                           r
+                       )
+           )
+    TypeDefn
+        (SynComponentInfo.ComponentInfo([],[],[],longIdent name, xml, false, None, r),
+         SynTypeDefnRepr.Simple(SynTypeDefnSimpleRepr.Union(None, cases, r),r),SynMemberDefns.Empty,r)
+
+/// Expression for anonymous record type with fields
 let anonRecord fieldList = SynType.AnonRecd(false, fieldList, r)
+
+/// Expression for record instance
+let recordExpr fieldsAndValues =
+    SynExpr.Record(None, None, fieldsAndValues |> List.map (fun (f, v) -> RecordFieldName (longIdentWithDots f, false), identExpr v |> Some, None), r)
 
 /// Expression for generic type
 let genericType isPostfix name synTypes =
@@ -380,8 +450,12 @@ let optionOf synType = genericType true "option" [ synType ]
 let taskOf synTypes = genericType false "Task" synTypes
 
 /// Expression for generic Choice type:
-/// Task<{synTypes}>
+/// Choice<{synTypes}>
 let choiceOf synTypes = genericType false "Choice" synTypes
+
+/// Expression for generic Result type:
+/// Result<{synTypes}>
+let resultOf synTypes = genericType false "Result" synTypes
 
 /// Expression for creating tuple type:
 /// {synType0} * {synType1} * {synType2} * ...
@@ -443,8 +517,16 @@ let curriedCall name args =
 
 /// Tuple expression
 /// ({args[0]}, {args[1]}, ...)
+let tupleComplexExpr args =
+    SynExpr.Tuple(false, args, [ r ], r) |> paren
+/// Tuple expression
+/// ({args[0]}, {args[1]}, ...)
 let tupleExpr args =
-    SynExpr.Paren(SynExpr.Tuple(false, List.map identExpr args, [ r ], r), r, Some r, r)
+    tupleComplexExpr (List.map identExpr args)
+    
+/// Tuple pattern (for arg list or matching) 
+let tuplePat args =
+    SynPat.Tuple(false, args |> List.map (fun v -> SynPat.Named(SynPat.Wild(r), ident v, false, None, r)), r)
 
 /// Simple match clause expr
 /// | {pat} -> {expr}
@@ -458,6 +540,17 @@ let matchExpr what clauses =
 
 /// Infix right-associative operator for creating match clauses
 let inline (^=>) a b = clause a b
+
+let simpleValueMatching value cases =
+    let clauses =
+        cases
+        |> List.map
+            (
+                fun (v, into, res) ->
+                    SynPat.LongIdent(longIdentWithDots v, None, None, [SynPat.Named(SynPat.Wild(r), ident into, false, None, r)] |> Pats, None, r) ^=> res
+            )
+    matchExpr value clauses
+let inline (^|>) a b = app (appI (identExpr "op_PipeRight") a) b
 
 let setStatusCodeExpr code =
     app (identExpr "setStatusCode") (intExpr code)

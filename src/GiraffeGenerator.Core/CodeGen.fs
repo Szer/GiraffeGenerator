@@ -63,7 +63,17 @@ let createRoute (path: ParsedPath) =
             (path.Methods
              |> List.map (createRouteHandler path.Route))
     else
-        createRouteHandler path.Route (path.Methods.[0])
+        let routeExpr = createRouteHandler path.Route (path.Methods.[0])
+        // Without explicit parenthesizing two bad things happen:
+        // 1. `>=>` ignores SynExpr.App isInfix flag and generates prefix application for some obscure reason
+        // 2. application is ambiguous because the lack of parenthesis
+        // e.g. generated code is
+        // >=> POST bindRoute "route/{args}" service.Post next ctx
+        // instead of
+        // (POST >=> bindRoute "route/{args}" service.Post) next ctx
+        // or at least
+        // ((>=>) POST (bindRoute "route/{args}" service.Post) next ctx
+        paren routeExpr
 
 /// matching OpenAPI string IR to SynType
 let strFormatMatch =
@@ -97,6 +107,7 @@ let rec extractResponseSynType =
     | Prim primType -> primTypeMatch primType
     | Array innerType -> arrayOf (extractResponseSynType innerType)
     | Option innerType -> optionOf (extractResponseSynType innerType)
+    | BuiltIn builtIn -> synType builtIn
     | Object { Name = Some name } -> synType name
     | Object anonObject ->
         let fields =
@@ -105,6 +116,7 @@ let rec extractResponseSynType =
             ^ fun (name, typeKind) -> AST.ident name, extractResponseSynType typeKind
 
         if fields.IsEmpty then objType else anonRecord fields
+    | DU du -> synType du.Name
     | NoType -> unitType
 
 /// Creating AST XML docs from API representation
@@ -116,17 +128,29 @@ let xml: Docs option -> PreXmlDoc =
                   if docs.Remarks.IsSome then XmlDoc.remarks docs.Remarks.Value
                   if docs.Example.IsSome then XmlDoc.example docs.Example.Value ]
 
+/// Gets own name of the type instead of the name set upwards
+let getOwnName kind def =
+    match kind with
+    | DU du -> Some du.Name
+    | Object o -> o.Name
+    | _ -> None
+    |> Option.defaultWith def
+
 /// extract record definitions from
 let extractRecords (schemas: TypeSchema list) =
     // store name and fields of records here
-    let typesDict =
+    let recordsDict =
         Dictionary<string, SynField list * Docs option>()
-
+    // store name and cases of records here
+    let duDict =
+        Dictionary<string, (string * SynType * PreXmlDoc) list * Docs option>()
+    
     let rec extractSynType (name: string, kind: TypeKind) =
         match kind with
         | Prim primType -> primTypeMatch primType
-        | Array innerType -> arrayOf (extractSynType (name, innerType))
-        | Option innerType -> optionOf (extractSynType (name, innerType))
+        | BuiltIn builtIn -> synType builtIn
+        | Array innerType -> arrayOf (extractSynType (getOwnName innerType (fun () -> name), innerType))
+        | Option innerType -> optionOf (extractSynType (getOwnName innerType (fun () -> name), innerType))
         | Object objectKind ->
 
             // extract field types
@@ -137,9 +161,25 @@ let extractRecords (schemas: TypeSchema list) =
                     |> field fieldName)
 
             // add name and fields for later
-            typesDict.Add(name, (fields, objectKind.Docs))
+            if not ^ recordsDict.ContainsKey name then
+                recordsDict.Add(name, (fields, objectKind.Docs))
 
             // return SynType with record name
+            synType name
+        | DU du ->
+            let cases =
+                du.Cases
+                |> List.mapi
+                   (
+                       fun idx case ->
+                           let name = case.CaseName |> Option.defaultWith (fun _ -> sprintf "Case%d" (idx + 1))
+                           let subtypeName = getOwnName case.Kind (fun _ -> name + "CaseValue")
+                           name,
+                           extractSynType(subtypeName, case.Kind),
+                           xml case.Docs
+                   )
+            if cases.Length > 0 && not ^ duDict.ContainsKey du.Name then
+                duDict.Add(du.Name, (cases, du.Docs))
             synType name
         | NoType -> failwith "Field without types are not supported for record schemas"
 
@@ -148,13 +188,24 @@ let extractRecords (schemas: TypeSchema list) =
     for schema in schemas do
         extractSynType (schema.Name, schema.Kind)
         |> ignore
+    
+    // create final DU expressions
+    let dus =    
+        duDict
+        |> Seq.map
+        ^ fun (KeyValue(name, (cases, docs))) ->
+            discriminatedUnion (xml docs) name cases
 
     // create final record expressions
-    typesDict
-    |> Seq.map
-    ^ fun (KeyValue (name, (fields, docs))) ->
-        let xmlDocs = xml docs
-        record xmlDocs name fields
+    let records =
+        recordsDict
+        |> Seq.map
+        ^ fun (KeyValue (name, (fields, docs))) ->
+            let xmlDocs = xml docs
+            record xmlDocs name fields
+    
+    dus
+    |> Seq.append records
     |> Seq.toList
 
 /// Creating whole module AST for Giraffe webapp
@@ -166,6 +217,267 @@ let giraffeAst (api: Api) =
           openDecl "Giraffe"
           openDecl "System.Threading.Tasks"
           openDecl "Microsoft.AspNetCore.Http"
+          
+          // generate binding errors DU and stringifiers
+          let errInnerTypeName = "ArgumentError"
+          let errInnerGiraffeBinding = "GiraffeBindingError"
+          let errInnerFormatterBindingExn = "FormatterBindingException"
+          let errInnerModelBindingUnexpectedNull = "ModelBindingUnexpectedNull"
+          let errInnerCombined = "CombinedArgumentErrors"
+          let errInnerType =
+              DU {
+                  Name = errInnerTypeName
+                  Docs = Some { Summary = Some ["Represents some concrete error somewhere in arguments"]; Example = None; Remarks = None }
+                  Cases =
+                      [
+                          {
+                              CaseName = Some errInnerGiraffeBinding
+                              Docs = Some { Summary = Some ["Giraffe error returned in Result.Error of tryBindXXX method"]; Example = None; Remarks = None }
+                              Kind = Prim <| PrimTypeKind.String StringFormat.String
+                          }
+                          {
+                              CaseName = Some errInnerFormatterBindingExn
+                              Docs = Some { Summary = Some [ "Represents exception occured during IFormatter bind" ]; Example = None; Remarks = None }
+                              Kind = BuiltIn "exn"
+                          }
+                          {
+                              CaseName = Some errInnerModelBindingUnexpectedNull
+                              Docs = Some { Summary = Some ["For IFormatter bind (JSON, for example), represents a null that happens to exist because no value was provided for a property which is required"]; Example = None; Remarks = None }
+                              Kind = TypeKind.Object
+                                  {
+                                      Name = None
+                                      Properties =
+                                          [
+                                              "TypeName", Prim (PrimTypeKind.String StringFormat.String), None
+                                              "PropertyPath", TypeKind.Array (Prim <| PrimTypeKind.String StringFormat.String), None
+                                          ]
+                                      Docs = None
+                                  }
+                          }
+                          {
+                              CaseName = Some errInnerCombined
+                              Docs = Some { Summary = Some ["Represents multiple errors occured in one location"]; Example = None; Remarks = None }
+                              Kind = TypeKind.Array (DU { Name = errInnerTypeName; Docs = None; Cases = [] })
+                          }
+                      ]
+              }
+          let errOuterTypeName = "ArgumentLocationedError"
+          let errOuterBody = "BodyBindingError"
+          let errOuterQuery = "QueryBindingError"
+          let errOuterPath = "PathBindingError"
+          let errOuterCombined = "CombinedArgumentLocationError"
+          let errOuterType =
+              DU {
+                  Name = errOuterTypeName
+                  Docs = Some { Summary = Some ["Represents error in arguments of some location"]; Example = None; Remarks = None; }
+                  Cases =
+                      [
+                          {
+                              CaseName = Some errOuterBody
+                              Docs = Some { Summary = Some ["Represents error in body"]; Example = None; Remarks = None; }
+                              Kind = errInnerType
+                          }
+                          {
+                              CaseName = Some errOuterQuery
+                              Docs = Some { Summary = Some ["Represents error in query"]; Example = None; Remarks = None; }
+                              Kind = errInnerType
+                          }
+                          {
+                              CaseName = Some errOuterPath
+                              Docs = Some { Summary = Some ["Represents error in path"]; Example = None; Remarks = None; }
+                              Kind = errInnerType
+                          }
+                          {
+                              CaseName = Some errOuterCombined
+                              Docs = Some { Summary = Some ["Represents errors in multiple locations"]; Example = None; Remarks = None; }
+                              Kind = TypeKind.Array (DU { Name = errOuterTypeName; Docs = None; Cases = [] })
+                          }
+                      ]
+              }
+          [ errInnerTypeName, errInnerType; errOuterTypeName, errOuterType ]
+          |> List.map (fun (name, kind) -> { DefaultValue = None; Name = name; Kind = kind; Docs = None })
+          |> extractRecords
+          |> types
+          
+          let innerErrToStringName = "argErrorToString"
+          let levelParam = "level"
+          let valueParam = "value"
+          let sepVar = "sep"
+          let err = "err"
+          let nextLevel = app (appI (identExpr "op_Addition") (identExpr levelParam)) (SynConst.Int32 1 |> constExpr)
+          let letSep =
+              letOrUseDecl
+                  sepVar
+                  []
+                  (
+                      app
+                          (longIdentExpr "System.String")
+                          (
+                              tupleComplexExpr
+                                [
+                                    SynConst.Char ' ' |> constExpr
+                                    app (appI (identExpr "op_Multiply") (identExpr levelParam)) (SynConst.Int32 2 |> constExpr)
+                                ]
+                          )
+                  )
+          
+          let innerErrToStringDecl =
+              letDecl true innerErrToStringName [levelParam; valueParam] None
+              ^ letSep
+              ^ simpleValueMatching valueParam
+                [
+                    errInnerGiraffeBinding, err, sprintfExpr "%sGiraffe binding error: %s" [identExpr sepVar; identExpr err]
+                    errInnerModelBindingUnexpectedNull, err,
+                        sprintfExpr "%sUnexpected null was found at path %s.%s"
+                        ^ [identExpr sepVar; longIdentExpr (sprintf "%s.TypeName" err); paren (app (app (longIdentExpr "String.concat") (strExpr ".")) (longIdentExpr (sprintf "%s.PropertyPath" err))) ]
+                    errInnerFormatterBindingExn, err, longIdentExpr (sprintf "%s.Message" err)
+                    errInnerCombined, err,
+                        sprintfExpr "%sMultiple errors:\\n%s"
+                        ^ [identExpr sepVar
+                           app
+                            (app (longIdentExpr "String.concat") (strExpr "\\n"))
+                            (
+                                app // Seq.map (recCall (level + 1))
+                                    (app (longIdentExpr "Seq.map") (paren(app (identExpr innerErrToStringName) (paren(nextLevel)))))
+                                    (identExpr err)
+                                |> paren
+                            )
+                           |> paren
+                        ]
+                ]
+          innerErrToStringDecl
+          
+          let callInnerWithFormat format var =
+              sprintfExpr format [ identExpr sepVar; paren ( app (app (identExpr innerErrToStringName) (paren nextLevel)) (identExpr var)) ]
+          
+          let outerErrToStringName = "argLocationErrorToString"
+          let outerErrToStringDecl =
+              letDecl true outerErrToStringName [levelParam; valueParam] None
+              ^ letSep
+              ^ simpleValueMatching valueParam
+                [
+                    let common =
+                        [
+                            errOuterBody, "body"
+                            errOuterPath, "path"
+                            errOuterQuery, "query"
+                        ]
+                    for (case, var) in common do
+                        let uppercase = System.String([| System.Char.ToUpperInvariant var.[0]; yield! var |> Seq.skip 1 |])
+                        let format = sprintf "%%s%s binding error:\\n%%s" uppercase
+                        case, var, (callInnerWithFormat format var)
+                        
+                    errOuterCombined, err,
+                         sprintfExpr "%sMultiple binding errors:\\n%s"
+                         ^ [identExpr sepVar
+                            app
+                             (app (longIdentExpr "String.concat") (strExpr "\\n\\n"))
+                             (
+                                 app // Seq.map (recCall (level + 1))
+                                     (app (longIdentExpr "Seq.map") (paren(app (identExpr outerErrToStringName) (paren(nextLevel)))))
+                                     (identExpr err)
+                                 |> paren
+                             )
+                            |> paren
+                         ]
+                ]
+          outerErrToStringDecl
+          
+          // generate helper functions for binding
+          let checkForUnexpectedNullsName = "checkForUnexpectedNulls"
+          let checkForUnexpectedNulls =
+              let checkers = "checkers"
+              let errType = "errType"
+              let value = "value"
+              let mapCheckers = "mapCheckers"
+              let isNull = "isNull"
+              letDecl false checkForUnexpectedNullsName [checkers; errType; value] None
+              ^ letOrUseDecl isNull ["v"] (app (appI (identExpr "op_Equals") (identExpr "v")) (SynExpr.Null(r)))
+                    (
+                         letOrUseComplexParametersDecl mapCheckers (Pats [SynPat.Paren(tuplePat ["typeName"; "path"; "accessor"], r)])
+                            (
+                                 letOrUseComplexParametersDecl "v" (Pats [SynPat.Wild(r)])
+                                    (
+                                        app (identExpr errInnerModelBindingUnexpectedNull)
+                                            (
+                                                recordExpr
+                                                    [
+                                                        "TypeName", "typeName"
+                                                        "PropertyPath", "path"
+                                                    ]
+                                            )
+                                    )
+                                    (
+                                        app (identExpr "accessor") (identExpr value)
+                                        ^|> app (longIdentExpr "Option.map") (identExpr isNull)
+                                        ^|> app (longIdentExpr "Option.filter") (identExpr "id")
+                                        ^|> app (longIdentExpr "Option.map") (identExpr "v")
+                                    )
+                            )
+                            (
+                                identExpr checkers
+                                ^|> app (longIdentExpr "Seq.map") (identExpr mapCheckers)
+                                ^|> app (longIdentExpr "Seq.choose") (identExpr "id")
+                                ^|> longIdentExpr "Seq.toArray"
+                                ^|> identExpr errType
+                            )
+                    )
+          checkForUnexpectedNulls
+
+          let tryExtractErrorName = "tryExtractError"
+          let tryExtractError =
+              let value = "value"
+              letDecl false tryExtractErrorName [value] None
+              ^ simpleValueMatching value
+                    [
+                        "Ok", "whatever", identExpr "None"
+                        "Error", "err", app (identExpr "Some") (identExpr "err") 
+                    ]
+          tryExtractError
+
+          let parametersLocationNameMapping =
+              seq {
+                  for path in api.Paths do
+                      for method in path.Methods do
+                          if method.Parameters.IsSome then
+                              let locationNameMapping =
+                                method.Parameters.Value
+                                |> Map.toSeq
+                                |> Seq.filter (fst >> (function | Body _ -> false | _ -> true))
+                                |> Seq.collect
+                                     (
+                                         fun (key, value) ->
+                                             let nameNType =
+                                                 match value.Kind with
+                                                 | TypeKind.Object obj -> obj.Properties |> Seq.map (fun (nm,_,_) -> nm)
+                                                 | _ -> seq { value.Name }
+                                             nameNType |> Seq.map (fun t -> t, key)
+                                     )
+                                 |> Seq.groupBy fst
+                                 |> Seq.map (fun (name, values) -> name, values |> Seq.map (fun (_, v) -> v) |> Seq.toArray)
+                                 |> Seq.collect
+                                     (
+                                         fun (name, locations) ->
+                                             if locations.Length = 1 then
+                                                 seq { locations.[0], (name, name) }
+                                             else
+                                                 let unnameableCount =
+                                                     locations
+                                                     |> Seq.countBy id
+                                                     |> Seq.map snd
+                                                     |> Seq.filter ((<>) 1)
+                                                     |> Seq.length
+                                                 if unnameableCount > 0 then
+                                                     let err = sprintf "Unable to generate distinct input property name: property \"%s\" is duplicated by location and type" name
+                                                     failwith err
+                                                 locations |> Seq.map (fun loc -> loc, (name, name + "From" +  (loc.ToString())))
+                                     )
+                                 |> Seq.groupBy fst
+                                 |> Seq.map (fun (l, v) -> l, v |> Seq.map snd |> Map)
+                                 |> Map
+                              (method.Method, method.Name), locationNameMapping
+                          
+              } |> Map
 
           let allSchemas =
               [ for path in api.Paths do
