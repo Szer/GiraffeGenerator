@@ -471,7 +471,7 @@ let giraffeAst (api: Api) =
                                      (
                                          fun (name, locations) ->
                                              if locations.Length = 1 then
-                                                 seq { locations.[0], (name, name) }
+                                                 seq { name, (locations.[0], name) }
                                              else
                                                  let unnameableCount =
                                                      locations
@@ -481,10 +481,10 @@ let giraffeAst (api: Api) =
                                                      |> Seq.length
                                                  if unnameableCount > 0 then
                                                      failwithf "Unable to generate distinct input property name: property \"%s\" is duplicated by location" name
-                                                 locations |> Seq.map (fun loc -> loc, (name, name + "From" +  (loc.ToString())))
+                                                 locations |> Seq.map (fun loc -> name + "From" + (loc.ToString()), (loc, name))
                                      )
                                  |> Seq.groupBy fst
-                                 |> Seq.map (fun (l, v) -> l, v |> Seq.map snd |> Map)
+                                 |> Seq.map (fun (l, v) -> l, v |> Seq.map snd |> Seq.exactlyOne)
                                  |> Map
                               (method.Method, method.Name), locationNameMapping
                           
@@ -517,7 +517,14 @@ let giraffeAst (api: Api) =
                         for KeyValue(_, schema) in method.Parameters.Value do
                             schema
                         if method.Parameters.Value |> Map.toSeq |> Seq.map fst |> Seq.filter isNotBody |> Seq.length > 1 then
-                            let mapping = parametersLocationNameMapping |> Map.find (method.Method, method.Name)
+                            let mapping =
+                                parametersLocationNameMapping
+                                |> Map.find (method.Method, method.Name)
+                                |> Map.toSeq
+                                |> Seq.map ^ fun (newName, (loc, oldName)) -> loc, (oldName, newName)
+                                |> Seq.groupBy fst
+                                |> Seq.map (fun (k, v) -> k, v |> Seq.map snd |> Map)
+                                |> Map
                             let name = combinedInputTypeNames |> Map.find (method.Method, method.Name)
                             { // generate combined input record from every source of input 
                                 Name = name
@@ -656,7 +663,11 @@ let giraffeAst (api: Api) =
                                           if def.IsSome then
                                               name, indented ^|> app (longIdentExpr "Option.defaultValue") (defaultToExpr def.Value)
                                           else name, indented
-                                      | _ -> name, indented
+                                      | _ ->
+                                          if def.IsSome then
+                                              name, indented ^|> longIdentExpr "Option.ofObj" ^|> app (longIdentExpr "Option.defaultValue") (defaultToExpr def.Value)
+                                          else
+                                              name, indented
                               ]
                       
                       let generateDefaultMappingFun source outType =
@@ -709,7 +720,7 @@ let giraffeAst (api: Api) =
                           //     let! input = this.{method.Name}Input {argExpr}
                           //     return! this.{method.Name}Output input next ctx                                              
                           // }                                                                                                
-                          let defaultImplementationEmitter implDefn maybePath =
+                          let defaultImplementationEmitter implDefn (maybePath: TypeSchema option) =
                                 let maybeQuery =
                                     method.Parameters
                                     |> Option.bind (fun x -> x |> Map.toSeq |> Seq.filter (fst >> ((=) Query)) |> Seq.map snd |> Seq.tryExactlyOne)
@@ -727,25 +738,102 @@ let giraffeAst (api: Api) =
                                 let maybeBindQuery =
                                     maybeQueryBindingType
                                     |> Option.map ^ fun (bindingTypeDiffersFromQueryType, (bindingKind, querySchema)) ->
-                                        letOrUseDecl queryBinding []
-                                            (
-                                                let bindRaw =
-                                                    app
-                                                        (typeApp (longIdentExpr "ctx.TryBindQueryString") [extractResponseSynType bindingKind])
-                                                        (longIdentExpr "System.Globalization.CultureInfo.InvariantCulture")
-                                                    ^|> appResultMapError (identExpr errInnerGiraffeBinding ^>> identExpr errOuterQuery)
-                                                if not bindingTypeDiffersFromQueryType then
-                                                    bindRaw
-                                                else
-                                                    bindRaw
-                                                    ^|> appResultMap (generateDefaultMappingFun bindingKind (extractResponseSynType querySchema.Kind))
-                                            )
+                                        let bindRaw =
+                                            app
+                                                (typeApp (longIdentExpr "ctx.TryBindQueryString") [extractResponseSynType bindingKind])
+                                                (longIdentExpr "System.Globalization.CultureInfo.InvariantCulture")
+                                            ^|> appResultMapError (identExpr errInnerGiraffeBinding ^>> identExpr errOuterQuery)
+                                        if not bindingTypeDiffersFromQueryType then
+                                            bindRaw
+                                        else
+                                            bindRaw
+                                            ^|> appResultMap (generateDefaultMappingFun bindingKind (extractResponseSynType querySchema.Kind))
+                                    |> Option.map ^ letOrUseDecl queryBinding []
+                                
+                                let pathBinding = "pathArgs"
+                                let maybeBindPath =
+                                    // use path args as result for future validation
+                                    maybePath
+                                    |> Option.map
+                                        (
+                                            fun p ->
+                                                let res = typeApp (identExpr "Result") [extractResponseSynType p.Kind; synType errOuterTypeName]
+                                                let okCall = SynExpr.DotGet(res,r,longIdentWithDots "Ok",r)
+                                                app okCall (identExpr "pathArgs")
+                                        )
+                                    |> Option.map ^ letOrUseDecl pathBinding []
 
-                                let argExpr =
-                                    if maybeSingleNonBodyParameter.IsSome && maybeBody.IsNone && maybeBindQuery.IsSome then
-                                        tupleExpr [ queryBinding; "ctx" ]
-                                    else identExpr "ctx"
+                                let combinedInputs = "combinedArgs"
+                                let generateInputsCombination synt (schema: TypeSchema) bindings =
+                                    let rec generateBinds binded leftToBind =
+                                        if List.length leftToBind > 0 then
+                                            identExpr binded
+                                            ^|> appResultBind
+                                                ^ lambda ([simplePat binded] |> simplePats)
+                                                    ^ generateBinds leftToBind.Head leftToBind.Tail
+                                        else
+                                            identExpr binded
+                                            ^|> appResultMap
+                                                ^ lambda ([simplePat binded] |> simplePats)
+                                                    ^ letOrUseComplexDecl
+                                                        (SynPat.Typed(SynPat.Named(SynPat.Wild r, ident "v", false, None, r), synt, r))
+                                                        (
+                                                            let bindings = Map bindings
+                                                            match schema.Kind with
+                                                            | TypeKind.Object o ->
+                                                                let mapping = parametersLocationNameMapping |> Map.find (method.Method, method.Name)
+                                                                [
+                                                                    for (name, _, _) in o.Properties do
+                                                                        let (sourceLocation, sourceName) = mapping |> Map.find name
+                                                                        let sourceBinding = bindings |> Map.find sourceLocation
+                                                                        name, longIdentExpr (sourceBinding + "." + sourceName)
+                                                                ]
+                                                            | _ -> failwith "combined record should be a record, you know"
+                                                            |> recordExpr
+                                                        )
+                                                        (identExpr "v")
+                                    let onlyNames = bindings |> List.map snd
+                                    generateBinds onlyNames.Head onlyNames.Tail
                                     
+                                let maybeBindCombined =
+                                    Option.map2 (fun a b -> a,b) maybeCombinedType maybeCombinedTypeOpenApi
+                                    |> Option.bind
+                                        (
+                                            fun (synt,schema) ->
+                                                [
+                                                    maybeBindPath |> Option.map ^ fun _ -> Path, pathBinding
+                                                    maybeBindQuery |> Option.map ^ fun _ -> Query, queryBinding
+                                                ]
+                                                |> List.choose id
+                                                |> fun x -> if x.Length > 1 then Some x else None
+                                                |> Option.map ^ generateInputsCombination synt schema
+                                        )
+                                    |> Option.map ^ letOrUseDecl combinedInputs []
+                                
+                                let bodyBinding = "bodyArgs"
+                                
+                                let (nonBody, body) =
+                                    if maybeSingleNonBodyParameter.IsSome then
+                                        let binding =
+                                            match fst maybeSingleNonBodyParameterOpenApi.Value with
+                                            | Query -> queryBinding
+                                            | Path -> pathBinding
+                                            | Body _ -> failwith "impossibru"
+                                        if maybeBody.IsNone then
+                                            Some binding, None
+                                        else Some binding, Some bodyBinding
+                                    else
+                                        if maybeCombinedType.IsSome then
+                                            if maybeBody.IsNone then Some combinedInputs, None
+                                            else Some combinedInputs, Some bodyBinding
+                                        else
+                                            if maybeBody.IsNone then None, None
+                                            else None, Some bodyBinding
+
+                                let finalArgsBinding = "args"
+                                
+                                let argExpr = identExpr "ctx"
+                                
                                 let finalCall =
                                     letBangExpr                                                                                 
                                       "input"                                                                                 
@@ -753,11 +841,18 @@ let giraffeAst (api: Api) =
                                       (returnBang                                                                             
                                        ^ curriedCall (sprintf "this.%sOutput" method.Name) [ "input"; "next"; "ctx" ])
 
-                                let finalCall =
-                                    maybeBindQuery
+                                let makeCall maybeBind finalCall =
+                                    maybeBind
                                     |> Option.map (fun b -> b ^ finalCall)
                                     |> Option.defaultValue finalCall
-
+                                
+                                let finalCall =
+                                    // the code below works like backpipe because each next call is applied as a callback to the previous one
+                                    finalCall
+                                    |> makeCall maybeBindCombined
+                                    |> makeCall maybeBindPath
+                                    |> makeCall maybeBindQuery
+                                
                                 implDefn                                                                                      
                                 ^ lambdaFunNextCtxExpr                                                                        
                                 ^ taskBuilder                                                                                 

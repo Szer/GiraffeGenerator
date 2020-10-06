@@ -453,7 +453,7 @@ let simplePat name = SynSimplePat.Id(ident name,None,false,false,false,r)
 let simplePats pats = SynSimplePats.SimplePats(pats, r)
 
 let lambda pats body =
-    SynExpr.Lambda(false, false, pats, body, r)
+    SynExpr.Lambda(false, false, pats, body, r) |> paren
 
 
 /// Expression for generic array type in postfix notation:
