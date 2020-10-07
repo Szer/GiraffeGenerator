@@ -72,48 +72,7 @@ let giraffeAst (api: Api) =
           CodeGenErrorsDU.outerErrToStringDecl
 
           // generate helper functions for null checking
-          let checkForUnexpectedNullsName = "checkForUnexpectedNulls"
-          let checkForUnexpectedNulls =
-              let checkers = "checkers"
-              let errType = "errType"
-              let value = "value"
-              let mapCheckers = "mapCheckers"
-              letDecl false checkForUnexpectedNullsName [checkers; errType; value] None
-              ^ letOrUseComplexParametersDecl mapCheckers (Pats [SynPat.Paren(tuplePat ["typeName"; "path"; "accessor"], r)])
-                    (
-                         letOrUseComplexParametersDecl "v" (Pats [SynPat.Wild(r)])
-                            (
-                                app (identExpr CodeGenErrorsDU.errInnerModelBindingUnexpectedNull)
-                                    (
-                                        recordExpr
-                                            [
-                                                "TypeName", identExpr "typeName"
-                                                "PropertyPath", identExpr "path"
-                                            ]
-                                    )
-                            )
-                            (
-                                app (identExpr "accessor") (identExpr value)
-                                ^|> app (longIdentExpr "Option.filter") (identExpr "id")
-                                ^|> app (longIdentExpr "Option.map") (identExpr "v")
-                            )
-                    )
-                    (
-                        identExpr checkers
-                        ^|> app (longIdentExpr "Seq.collect") (identExpr "id")
-                        ^|> app (longIdentExpr "Seq.map") (identExpr mapCheckers)
-                        ^|> app (longIdentExpr "Seq.choose") (identExpr "id")
-                        ^|> longIdentExpr "Seq.toArray"
-                        ^|> lambda (simplePats[simplePat "v"])
-                            (
-                                ifElseExpr
-                                    (app (appI (identExpr "op_GreaterThan") (longIdentExpr "v.Length")) (constExpr (SynConst.Int32 1)))
-                                    (identExpr "v" ^|> identExpr errInnerCombined)
-                                    (identExpr "v" ^|> longIdentExpr "Array.head")
-                            )
-                        ^|> identExpr errType
-                    )
-          checkForUnexpectedNulls
+          yield! CodeGenNullChecking.generateNullCheckingHelpers()
 
           let tryExtractErrorName = "tryExtractError"
           let tryExtractError =
@@ -373,6 +332,7 @@ let giraffeAst (api: Api) =
                                         else
                                             bindRaw
                                             ^|> Result.mapExpr (generateDefaultMappingFun bindingKind (extractResponseSynType querySchema.Kind))
+                                        |> CodeGenNullChecking.bindNullCheckIntoResult "query" querySchema CodeGenErrorsDU.errOuterQuery
                                     |> Option.map ^ letOrUseDecl queryBinding []
                                 
                                 let pathBinding = "pathArgs"
@@ -384,7 +344,8 @@ let giraffeAst (api: Api) =
                                             fun p ->
                                                 let res = typeApp (identExpr "Result") [extractResponseSynType p.Kind; synType CodeGenErrorsDU.errOuterTypeName]
                                                 let okCall = SynExpr.DotGet(res,r,longIdentWithDots "Ok",r)
-                                                app okCall (identExpr "pathArgs")
+                                                let expr = app okCall (identExpr "pathArgs")
+                                                CodeGenNullChecking.bindNullCheckIntoResult "path" p CodeGenErrorsDU.errOuterPath expr
                                         )
                                     |> Option.map ^ letOrUseDecl pathBinding []
 
@@ -442,7 +403,7 @@ let giraffeAst (api: Api) =
                                 let bodyBinding = "bodyArgs"
                                 let maybeBindBody =
                                     Option.map2 (fun a b -> a,b) maybeBody maybeBodyOpenApi
-                                    |> Option.map ^ fun (bodyType, (location, schema)) ->
+                                    |> Option.map ^ fun (bodyType, (location, bodySchema)) ->
                                         letBangExpr bodyBinding
                                             (
                                                 let expr =
@@ -458,6 +419,7 @@ let giraffeAst (api: Api) =
                                                 let call = app typeApp (tupleExpr [])
                                                 let bindCallIntoResult =
                                                     letBangExpr bodyBinding call (returnExpr ^ app (identExpr "Ok") (identExpr bodyBinding))
+                                                    |> CodeGenNullChecking.bindNullCheckIntoResult "body" bodySchema CodeGenErrorsDU.errOuterBody
                                                 let catchClause =
                                                     [
                                                         returnExpr (app (identExpr CodeGenErrorsDU.errInnerFormatterBindingExn) (identExpr "e"))

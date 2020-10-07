@@ -11,6 +11,7 @@
     <Compile Include="OpenApi.fs" />
     <Compile Include="OpenApiToAstTypesMatchingAndConversion.fs" />
     <Compile Include="CodeGenErrorsDU.fs" />
+    <Compile Include="CodeGenNullChecking.fs" />
     <Compile Include="CodeGen.fs" />
   </ItemGroup>
 
@@ -24,7 +25,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Update="FSharp.Core" Version="4.7.2"/>
+    <PackageReference Update="FSharp.Core" Version="4.7.2" />
     <PackageReference Include="Fantomas" Version="4.0.0" />
     <PackageReference Include="FSharp.Compiler.Service" Version="37.0.0" />
     <PackageReference Include="Microsoft.OpenApi.Readers" Version="1.2.3" />
