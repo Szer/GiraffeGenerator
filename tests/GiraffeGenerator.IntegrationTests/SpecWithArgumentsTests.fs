@@ -1,5 +1,6 @@
 namespace GiraffeGenerator.IntegrationTests
 
+open System.Collections.Generic
 open System.Net
 open System.Net.Http
 open FSharp.Control.Tasks.V2.ContextInsensitive
@@ -28,7 +29,7 @@ type SpecWithArgumentsTests() =
                         Choice2Of2 "not_ok"
                 }
             
-            member _.PerformSearchInput ((args,ctx)) = task {
+            member _.PerformSearchInput ((args,body,ctx)) = task {
                 return
                     if args.version = "v1" then
                         Choice1Of2 [| box "abc" |]
@@ -87,7 +88,8 @@ type SpecWithArgumentsTests() =
     
     [<Fact>]
     let ``POST /abc/v1/records -> OK ["abc"]``() = task {
-        let! response = client.PostAsync("/abc/v1/records", null)
+        use content = new FormUrlEncodedContent(Seq.empty)
+        let! response = client.PostAsync("/abc/v1/records", content)
         let! text = response.Content.ReadAsStringAsync()
         Assert.Equal("[\"abc\"]",text)
         Assert.Equal(HttpStatusCode.OK, response.StatusCode)
@@ -95,7 +97,8 @@ type SpecWithArgumentsTests() =
     
     [<Fact>]
     let ``POST /foo/v2/records -> OK ["good"]``() = task {
-        let! response = client.PostAsync("/foo/v2/records", null)
+        use content = new FormUrlEncodedContent(Seq.empty)
+        let! response = client.PostAsync("/foo/v2/records", content)
         let! text = response.Content.ReadAsStringAsync()
         Assert.Equal("[\"good\"]",text)
         Assert.Equal(HttpStatusCode.OK, response.StatusCode)
@@ -103,7 +106,8 @@ type SpecWithArgumentsTests() =
     
     [<Fact>]
     let ``POST /abc/v3/records -> NOT_FOUND``() = task {
-        let! response = client.PostAsync("/abc/v3/records", null)
+        use content = new FormUrlEncodedContent(Seq.empty)
+        let! response = client.PostAsync("/abc/v3/records", content)
         let! text = response.Content.ReadAsStringAsync()
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode)
     }
