@@ -497,8 +497,8 @@ let giraffeAst (api: Api) =
                                                                                       (
                                                                                           app (appI (identExpr "op_GreaterThan") (longIdentExpr "errs.Length")) (constExpr ^ SynConst.Int32 1)
                                                                                       )
+                                                                                      (app (identExpr CodeGenErrorsDU.errOuterCombined) (identExpr "errs"))
                                                                                       (app (longIdentExpr "Array.head") (identExpr "errs"))
-                                                                                      ^ app (identExpr CodeGenErrorsDU.errOuterCombined) (identExpr "errs")
                                                                             )
                                                                     errExpr ^|> identExpr "Error"
                                                             ]
