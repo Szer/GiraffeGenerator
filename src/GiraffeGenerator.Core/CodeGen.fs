@@ -154,15 +154,19 @@ let giraffeAst (api: Api) =
                       if method.Parameters.IsSome then
                         for KeyValue(source, schema) in method.Parameters.Value do
                             if source = Query || not (isNotBody source) then // non-query and non-body bindings don't support default values
-                                let needsGeneration, tmpType, typeName = generateOptionalType schema.Kind schema.DefaultValue
+                                let (needsGeneration, tmpType, typeName), generatedTypes = generateOptionalType schema.Kind schema.DefaultValue (Some schema.Name)
                                 if needsGeneration && typeName.IsSome then
-                                    schema, (typeName.Value, tmpType) ]
+                                    schema, (typeName.Value, tmpType, generatedTypes) ]
           let tmpBindingSchemasMap =
               tmpBindingSchemas
-              |> Seq.map (fun (original, temp) -> original.Name, temp)
+              |> Seq.collect (fun (_, (_, _, v)) -> v)
+              |> Seq.map (fun v -> v.OriginalName, (v.GeneratedName, v.Generated))
               |> Map
-          let tmpBindingSchemas = tmpBindingSchemas |> List.map (fun (s,(n,v)) -> { s with Kind = v; Name = n })
-          if not tmpBindingSchemas.IsEmpty then types (extractRecords tmpBindingSchemas)
+          let tmpBindingSchemasReverseMap =
+              tmpBindingSchemas
+              |> Seq.collect (fun (_, (_, _, v)) -> v)
+              |> Seq.map (fun v -> v.GeneratedName, (v.OriginalName, v.Original))
+              |> Map
 
           let allSchemas =
               [ for path in api.Paths do
@@ -205,7 +209,8 @@ let giraffeAst (api: Api) =
                                             |> Seq.toList
                                     } |> TypeKind.Object
                             }
-                yield! api.Schemas ]
+                yield! api.Schemas
+                yield! tmpBindingSchemas |> Seq.map (fun (s,(n,v,_)) -> { s with Kind = v; Name = n }) ]
 
           if not allSchemas.IsEmpty then types (extractRecords allSchemas)
 
@@ -274,35 +279,6 @@ let giraffeAst (api: Api) =
                              // abstract {method.Name}: HttpHandler
                              abstractGetterDfn (xml method.Docs) method.Name (synType "HttpHandler")
                       
-                      let rec generateDefaultRecordMapping instanceName source =
-                          let source = match source with TypeKind.Object o -> o | _ -> failwith "source should be an object"
-                          recordExpr
-                              [
-                                  for name, kind, def in source.Properties do
-                                      let propPath = instanceName + "." + name
-                                      let indented = longIdentExpr propPath
-                                      match kind with
-                                      | TypeKind.Object _ ->
-                                          name, generateDefaultRecordMapping propPath kind
-                                      | TypeKind.Option _ ->
-                                          if def.IsSome then
-                                              name, indented ^|> Option.defaultValueExpr (defaultToExpr def.Value)
-                                          else name, indented
-                                      | _ ->
-                                          if def.IsSome then
-                                              name, indented ^|> longIdentExpr "Option.ofObj" ^|> Option.defaultValueExpr (defaultToExpr def.Value)
-                                          else
-                                              name, indented
-                              ]
-                      
-                      let generateDefaultMappingFun source outType =
-                          let param = "src"
-                          let recordExpr = generateDefaultRecordMapping param source
-                          let bindWithTypeAndReturn =
-                              letOrUseComplexDecl (SynPat.Typed(SynPat.Named(SynPat.Wild r, ident "v", false, None, r), outType, r))
-                                  recordExpr (identExpr "v")
-                          lambda (simplePats [simplePat param]) bindWithTypeAndReturn |> paren
-                      
                       if not responseTypes.IsEmpty then
                           // Choice<{responseTypes[0]}, {responseTypes[1]}, ...>
                           // Or {responseType}
@@ -346,7 +322,7 @@ let giraffeAst (api: Api) =
                                         tmpSchema
                                         |> Option.map ^ fun (_, bindingKind) ->
                                             bindRaw
-                                            ^|> Result.mapExpr (generateDefaultMappingFun bindingKind (extractResponseSynType querySchema.Kind))
+                                            ^|> Result.mapExpr (DefaultsGeneration.generateDefaultMappingFun tmpBindingSchemasReverseMap bindingKind querySchema.Kind)
                                         |> Option.defaultValue bindRaw
                                         |> CodeGenNullChecking.bindNullCheckIntoResult "query" querySchema CodeGenErrorsDU.errOuterQuery
                                     |> Option.map ^ letOrUseDecl queryBinding []
@@ -444,7 +420,7 @@ let giraffeAst (api: Api) =
                                                     tmpSchema
                                                     |> Option.map ^ fun (_, bindingKind) ->
                                                         bindRaw
-                                                        ^|> Result.mapExpr (generateDefaultMappingFun bindingKind (extractResponseSynType bodySchema.Kind))
+                                                        ^|> Result.mapExpr (DefaultsGeneration.generateDefaultMappingFun tmpBindingSchemasReverseMap bindingKind bodySchema.Kind)
                                                     |> Option.defaultValue bindRaw
                                                     |> CodeGenNullChecking.bindNullCheckIntoResult "body" bodySchema CodeGenErrorsDU.errOuterBody
                                                 let catchClause =
