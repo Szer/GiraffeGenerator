@@ -3,6 +3,7 @@ module CodeGen
 open System.Collections.Generic
 open System.Globalization
 open AST
+open ASTExt
 open OpenApi
 open Fantomas
 open FSharp.Compiler.XmlDoc
@@ -498,11 +499,11 @@ let giraffeAst (api: Api) =
                                           name, generateDefaultRecordMapping propPath kind
                                       | TypeKind.Option _ ->
                                           if def.IsSome then
-                                              name, indented ^|> app (longIdentExpr "Option.defaultValue") (defaultToExpr def.Value)
+                                              name, indented ^|> Option.defaultValueExpr (defaultToExpr def.Value)
                                           else name, indented
                                       | _ ->
                                           if def.IsSome then
-                                              name, indented ^|> longIdentExpr "Option.ofObj" ^|> app (longIdentExpr "Option.defaultValue") (defaultToExpr def.Value)
+                                              name, indented ^|> longIdentExpr "Option.ofObj" ^|> Option.defaultValueExpr (defaultToExpr def.Value)
                                           else
                                               name, indented
                               ]
@@ -567,10 +568,6 @@ let giraffeAst (api: Api) =
                                         let (differs, kind) = generateOptionalType q.Kind q.DefaultValue
                                         differs, (kind, q)
                                     
-                                let appResultMap = app (longIdentExpr "Result.map")
-                                let appResultBind = app (longIdentExpr "Result.bind")
-                                let appResultMapError = app (longIdentExpr "Result.mapError")
-                                    
                                 let queryBinding = "queryArgs"
                                 let maybeBindQuery =
                                     maybeQueryBindingType
@@ -579,12 +576,12 @@ let giraffeAst (api: Api) =
                                             app
                                                 (typeApp (longIdentExpr "ctx.TryBindQueryString") [extractResponseSynType bindingKind])
                                                 (longIdentExpr "System.Globalization.CultureInfo.InvariantCulture")
-                                            ^|> appResultMapError (identExpr CodeGenErrorsDU.errInnerGiraffeBinding ^>> identExpr CodeGenErrorsDU.errOuterQuery)
+                                            ^|> Result.mapErrorExpr (identExpr CodeGenErrorsDU.errInnerGiraffeBinding ^>> identExpr CodeGenErrorsDU.errOuterQuery)
                                         if not bindingTypeDiffersFromQueryType then
                                             bindRaw
                                         else
                                             bindRaw
-                                            ^|> appResultMap (generateDefaultMappingFun bindingKind (extractResponseSynType querySchema.Kind))
+                                            ^|> Result.mapExpr (generateDefaultMappingFun bindingKind (extractResponseSynType querySchema.Kind))
                                     |> Option.map ^ letOrUseDecl queryBinding []
                                 
                                 let pathBinding = "pathArgs"
@@ -604,12 +601,12 @@ let giraffeAst (api: Api) =
                                 let rec generateBinds binded leftToBind generateFinal =
                                     if List.length leftToBind > 0 then
                                         identExpr binded
-                                        ^|> appResultBind
+                                        ^|> Result.bindExpr
                                             ^ lambda ([simplePat binded] |> simplePats)
                                                 ^ generateBinds leftToBind.Head leftToBind.Tail generateFinal
                                     else
                                         identExpr binded
-                                            ^|> appResultMap
+                                            ^|> Result.mapExpr
                                                 ^ lambda ([simplePat binded] |> simplePats) ^ generateFinal()
                                 let generateInputsCombination synt (schema: TypeSchema) bindings =
                                     let finalGenerator () =
@@ -722,7 +719,7 @@ let giraffeAst (api: Api) =
                                                                         letOrUseDecl "errs" []
                                                                             (
                                                                                 SynExpr.ArrayOrList(false, allRawBindings, r)
-                                                                                ^|> app (longIdentExpr "Seq.choose") (identExpr "id")
+                                                                                ^|> seqChooseId
                                                                                 ^|> longIdentExpr "Seq.toArray"
                                                                             )
                                                                             (
