@@ -40,8 +40,8 @@ let strFormatMatch =
     | PasswordString -> stringType
     | Byte -> arrayOf byteType
     | Binary -> arrayOf byteType
-    | DateString
-    | DateTimeString -> dateType
+    | DateString -> dateType
+    | DateTimeString -> dateTimeType
     | Custom "uri"
     | Custom "uriref" -> uriType
     | Custom "uuid"
