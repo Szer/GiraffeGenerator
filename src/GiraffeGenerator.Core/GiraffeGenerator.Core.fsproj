@@ -9,6 +9,7 @@
     <Compile Include="AST.fs" />
     <Compile Include="ASTExt.fs" />
     <Compile Include="OpenApi.fs" />
+    <Compile Include="OpenApiToAstTypesMatchingAndConversion.fs" />
     <Compile Include="CodeGenErrorsDU.fs" />
     <Compile Include="CodeGen.fs" />
   </ItemGroup>
