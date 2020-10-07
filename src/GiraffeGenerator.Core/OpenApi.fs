@@ -101,6 +101,7 @@ type PrimTypeKind =
         | :? OpenApiBoolean as bool -> oneWay Bool bool DefaultableKind.Boolean
         | :? OpenApiDateTime as dateTime -> oneWay (String DateTimeString) dateTime DefaultableKind.DateTime
         | :? OpenApiDate as date -> oneWay (String DateString) date DefaultableKind.Date
+        | :? OpenApiPassword as pwd -> oneWay (String PasswordString) pwd DefaultableKind.String
         | :? OpenApiString as str ->
             match s with
             | String s ->
