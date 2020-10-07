@@ -20,6 +20,9 @@
     <Compile Include="SpecWithSchemasTests.fs" />
     <Compile Include="SpecWithArgumentsTests.fs" />
     <Content Include="RemoveGenerated.ps1" />
+    <Content Include="specs\specWithSchemas.yaml" />
+    <Content Include="specs\specWithArguments.yaml" />
+    <Content Include="specs\specSimple.yaml" />
   </ItemGroup>
 
   <ItemGroup>
