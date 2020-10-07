@@ -1,0 +1,1 @@
+﻿ls Spec*.fs | ?{ -not $_.Name.EndsWith("Tests.fs") } | rm

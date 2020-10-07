@@ -19,6 +19,7 @@
     <Compile Include="SpecSimpleTests.fs" />
     <Compile Include="SpecWithSchemasTests.fs" />
     <Compile Include="SpecWithArgumentsTests.fs" />
+    <Content Include="RemoveGenerated.ps1" />
   </ItemGroup>
 
   <ItemGroup>
