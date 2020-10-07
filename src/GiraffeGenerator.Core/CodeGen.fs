@@ -153,7 +153,7 @@ let giraffeAst (api: Api) =
                   for method in path.Methods do
                       if method.Parameters.IsSome then
                         for KeyValue(source, schema) in method.Parameters.Value do
-                            if source = Query then // non-query bindings don't support default values
+                            if source = Query || not (isNotBody source) then // non-query and non-body bindings don't support default values
                                 let needsGeneration, typeName, tmpType = generateOptionalType schema.Kind schema.DefaultValue
                                 if needsGeneration && typeName.IsSome then
                                     schema, (typeName.Value, tmpType) ]
@@ -417,9 +417,14 @@ let giraffeAst (api: Api) =
                                     |> Option.map ^ letOrUseDecl combinedInputs []
                                 
                                 let bodyBinding = "bodyArgs"
+                                let maybeBodyBindingType =
+                                    maybeBodyOpenApi
+                                    |> Option.map ^ fun q ->
+                                        let tmpSchema = tmpBindingSchemasMap |> Map.tryFind (snd q).Name
+                                        tmpSchema, q
                                 let maybeBindBody =
-                                    Option.map2 (fun a b -> a,b) maybeBody maybeBodyOpenApi
-                                    |> Option.map ^ fun (bodyType, (location, bodySchema)) ->
+                                    maybeBodyBindingType
+                                    |> Option.map ^ fun (tmpSchema, (location, bodySchema)) ->
                                         letBangExpr bodyBinding
                                             (
                                                 let expr =
@@ -431,10 +436,16 @@ let giraffeAst (api: Api) =
                                                         | v -> failwithf "Content type %A is not supported" v 
                                                     | _ -> failwith "Body should be located in body, you know"
                                                     |> longIdentExpr
-                                                let typeApp = typeApp expr [bodyType]
+                                                let typeApp = typeApp expr [tmpSchema |> Option.map fst |> Option.defaultValue bodySchema.Name |> synType]
                                                 let call = app typeApp (tupleExpr [])
-                                                let bindCallIntoResult =
+                                                let bindRaw =
                                                     letBangExpr bodyBinding call (returnExpr ^ app (identExpr "Ok") (identExpr bodyBinding))
+                                                let bindCallIntoResult =
+                                                    tmpSchema
+                                                    |> Option.map ^ fun (_, bindingKind) ->
+                                                        bindRaw
+                                                        ^|> Result.mapExpr (generateDefaultMappingFun bindingKind (extractResponseSynType bodySchema.Kind))
+                                                    |> Option.defaultValue bindRaw
                                                     |> CodeGenNullChecking.bindNullCheckIntoResult "body" bodySchema CodeGenErrorsDU.errOuterBody
                                                 let catchClause =
                                                     [
