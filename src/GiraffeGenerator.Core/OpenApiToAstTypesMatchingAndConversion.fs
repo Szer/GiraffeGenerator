@@ -183,15 +183,16 @@ let rec generateOptionalType kind def =
                   Properties =
                       o.Properties
                       |> List.map ^ fun (name, kind, def) ->
-                          let (hasDefault, _, kind) = generateOptionalType kind def
+                          let (hasDefault, kind, _) = generateOptionalType kind def
                           if hasDefault then
                               hasPropertiesWithDefault <- true
                           name, kind, def
           }
-      hasPropertiesWithDefault, kind.Name, TypeKind.Object kind
+      hasPropertiesWithDefault, TypeKind.Object kind, kind.Name
     | v ->
       let isDefaultable = Option.isSome def
-      isDefaultable, None, if isDefaultable then TypeKind.Option v else v
+      let kind = if isDefaultable then TypeKind.Option v else v
+      isDefaultable, kind, None
       
 
 let rec defaultToExpr v =

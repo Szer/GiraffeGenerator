@@ -154,7 +154,7 @@ let giraffeAst (api: Api) =
                       if method.Parameters.IsSome then
                         for KeyValue(source, schema) in method.Parameters.Value do
                             if source = Query || not (isNotBody source) then // non-query and non-body bindings don't support default values
-                                let needsGeneration, typeName, tmpType = generateOptionalType schema.Kind schema.DefaultValue
+                                let needsGeneration, tmpType, typeName = generateOptionalType schema.Kind schema.DefaultValue
                                 if needsGeneration && typeName.IsSome then
                                     schema, (typeName.Value, tmpType) ]
           let tmpBindingSchemasMap =
