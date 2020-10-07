@@ -148,6 +148,22 @@ let giraffeAst (api: Api) =
                   )
               |> Map
 
+          let tmpBindingSchemas =
+              [ for path in api.Paths do
+                  for method in path.Methods do
+                      if method.Parameters.IsSome then
+                        for KeyValue(source, schema) in method.Parameters.Value do
+                            if source = Query then // non-query bindings don't support default values
+                                let needsGeneration, typeName, tmpType = generateOptionalType schema.Kind schema.DefaultValue
+                                if needsGeneration && typeName.IsSome then
+                                    schema, (typeName.Value, tmpType) ]
+          let tmpBindingSchemasMap =
+              tmpBindingSchemas
+              |> Seq.map (fun (original, temp) -> original.Name, temp)
+              |> Map
+          let tmpBindingSchemas = tmpBindingSchemas |> List.map (fun (s,(n,v)) -> { s with Kind = v; Name = n })
+          if not tmpBindingSchemas.IsEmpty then types (extractRecords tmpBindingSchemas)
+
           let allSchemas =
               [ for path in api.Paths do
                   for method in path.Methods do
@@ -315,23 +331,23 @@ let giraffeAst (api: Api) =
                                 let maybeQueryBindingType =
                                     maybeQuery
                                     |> Option.map ^ fun q ->
-                                        let (differs, kind) = generateOptionalType q.Kind q.DefaultValue
-                                        differs, (kind, q)
+                                        let tmpSchema = tmpBindingSchemasMap |> Map.tryFind q.Name
+                                        tmpSchema, q
                                     
                                 let queryBinding = "queryArgs"
                                 let maybeBindQuery =
                                     maybeQueryBindingType
-                                    |> Option.map ^ fun (bindingTypeDiffersFromQueryType, (bindingKind, querySchema)) ->
+                                    |> Option.map ^ fun (tmpSchema, querySchema) ->
                                         let bindRaw =
                                             app
-                                                (typeApp (longIdentExpr "ctx.TryBindQueryString") [extractResponseSynType bindingKind])
+                                                (typeApp (longIdentExpr "ctx.TryBindQueryString") [tmpSchema |> Option.map fst |> Option.defaultValue querySchema.Name |> synType])
                                                 (longIdentExpr "System.Globalization.CultureInfo.InvariantCulture")
                                             ^|> Result.mapErrorExpr (identExpr CodeGenErrorsDU.errInnerGiraffeBinding ^>> identExpr CodeGenErrorsDU.errOuterQuery)
-                                        if not bindingTypeDiffersFromQueryType then
-                                            bindRaw
-                                        else
+                                        tmpSchema
+                                        |> Option.map ^ fun (_, bindingKind) ->
                                             bindRaw
                                             ^|> Result.mapExpr (generateDefaultMappingFun bindingKind (extractResponseSynType querySchema.Kind))
+                                        |> Option.defaultValue bindRaw
                                         |> CodeGenNullChecking.bindNullCheckIntoResult "query" querySchema CodeGenErrorsDU.errOuterQuery
                                     |> Option.map ^ letOrUseDecl queryBinding []
                                 

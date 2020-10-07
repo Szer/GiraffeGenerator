@@ -165,7 +165,7 @@ let extractRecords (schemas: TypeSchema list) =
     dus
     |> Seq.append records
     |> Seq.toList
-
+let mutable private optionalTypes = 0
 let rec generateOptionalType kind def =
     match kind with
     | TypeKind.Object o ->
@@ -173,20 +173,25 @@ let rec generateOptionalType kind def =
       let kind =
           {
               o with
-                  Name = None
+                  Name = o.Name
+                  |> Option.map (fun x -> x + "ForBinding")
+                  |> Option.defaultWith
+                         (
+                             fun _ ->
+                                 sprintf "TemporaryTypeForBinding%d" <| System.Threading.Interlocked.Increment(ref optionalTypes)
+                         ) |> Some
                   Properties =
                       o.Properties
                       |> List.map ^ fun (name, kind, def) ->
-                          let (hasDefault, kind) = generateOptionalType kind def
+                          let (hasDefault, _, kind) = generateOptionalType kind def
                           if hasDefault then
                               hasPropertiesWithDefault <- true
                           name, kind, def
           }
-          |> TypeKind.Object
-      hasPropertiesWithDefault, kind
+      hasPropertiesWithDefault, kind.Name, TypeKind.Object kind
     | v ->
       let isDefaultable = Option.isSome def
-      isDefaultable, if isDefaultable then TypeKind.Option v else v
+      isDefaultable, None, if isDefaultable then TypeKind.Option v else v
       
 
 let rec defaultToExpr v =
