@@ -395,44 +395,40 @@ let giraffeAst (api: Api) =
               let errType = "errType"
               let value = "value"
               let mapCheckers = "mapCheckers"
-              let isNull = "isNull"
               letDecl false checkForUnexpectedNullsName [checkers; errType; value] None
-              ^ letOrUseDecl isNull ["v"] (app (appI (identExpr "op_Equals") (identExpr "v")) (SynExpr.Null(r)))
+              ^ letOrUseComplexParametersDecl mapCheckers (Pats [SynPat.Paren(tuplePat ["typeName"; "path"; "accessor"], r)])
                     (
-                         letOrUseComplexParametersDecl mapCheckers (Pats [SynPat.Paren(tuplePat ["typeName"; "path"; "accessor"], r)])
+                         letOrUseComplexParametersDecl "v" (Pats [SynPat.Wild(r)])
                             (
-                                 letOrUseComplexParametersDecl "v" (Pats [SynPat.Wild(r)])
+                                app (identExpr errInnerModelBindingUnexpectedNull)
                                     (
-                                        app (identExpr errInnerModelBindingUnexpectedNull)
-                                            (
-                                                recordExpr
-                                                    [
-                                                        "TypeName", identExpr "typeName"
-                                                        "PropertyPath", identExpr "path"
-                                                    ]
-                                            )
-                                    )
-                                    (
-                                        app (identExpr "accessor") (identExpr value)
-                                        ^|> app (longIdentExpr "Option.map") (identExpr isNull)
-                                        ^|> app (longIdentExpr "Option.filter") (identExpr "id")
-                                        ^|> app (longIdentExpr "Option.map") (identExpr "v")
+                                        recordExpr
+                                            [
+                                                "TypeName", identExpr "typeName"
+                                                "PropertyPath", identExpr "path"
+                                            ]
                                     )
                             )
                             (
-                                identExpr checkers
-                                ^|> app (longIdentExpr "Seq.map") (identExpr mapCheckers)
-                                ^|> app (longIdentExpr "Seq.choose") (identExpr "id")
-                                ^|> longIdentExpr "Seq.toArray"
-                                ^|> lambda (simplePats[simplePat "v"])
-                                    (
-                                        ifElseExpr
-                                            (app (appI (identExpr "op_GreaterThan") (longIdentExpr "v.Length")) (constExpr (SynConst.Int32 1)))
-                                            (identExpr "v" ^|> identExpr errInnerCombined)
-                                            (identExpr "v" ^|> longIdentExpr "Array.head")
-                                    )
-                                ^|> identExpr errType
+                                app (identExpr "accessor") (identExpr value)
+                                ^|> app (longIdentExpr "Option.filter") (identExpr "id")
+                                ^|> app (longIdentExpr "Option.map") (identExpr "v")
                             )
+                    )
+                    (
+                        identExpr checkers
+                        ^|> app (longIdentExpr "Seq.collect") (identExpr "id")
+                        ^|> app (longIdentExpr "Seq.map") (identExpr mapCheckers)
+                        ^|> app (longIdentExpr "Seq.choose") (identExpr "id")
+                        ^|> longIdentExpr "Seq.toArray"
+                        ^|> lambda (simplePats[simplePat "v"])
+                            (
+                                ifElseExpr
+                                    (app (appI (identExpr "op_GreaterThan") (longIdentExpr "v.Length")) (constExpr (SynConst.Int32 1)))
+                                    (identExpr "v" ^|> identExpr errInnerCombined)
+                                    (identExpr "v" ^|> longIdentExpr "Array.head")
+                            )
+                        ^|> identExpr errType
                     )
           checkForUnexpectedNulls
 
