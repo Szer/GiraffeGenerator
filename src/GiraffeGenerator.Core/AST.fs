@@ -579,3 +579,5 @@ let inline (^>>) a b = paren (app (appI (identExpr "op_ComposeRight") a) b)
 
 let setStatusCodeExpr code =
     app (identExpr "setStatusCode") (intExpr code)
+
+let inline (^) f x = f x

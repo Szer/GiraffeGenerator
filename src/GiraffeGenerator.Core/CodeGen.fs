@@ -8,8 +8,6 @@ open Fantomas
 open FSharp.Compiler.XmlDoc
 open FSharp.Compiler.SyntaxTree
 
-let inline (^) f x = f x
-
 module XmlDoc =
 
     /// | <{name}>
