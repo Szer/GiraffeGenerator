@@ -6,6 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="OptionConverter.fs" />
     <Compile Include="SpecSimple.fs">
       <OpenApiSpecFile>specs/specSimple.yaml</OpenApiSpecFile>
     </Compile>
