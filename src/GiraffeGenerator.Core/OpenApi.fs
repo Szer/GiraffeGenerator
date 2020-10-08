@@ -186,7 +186,7 @@ and DUKind =
 /// Array, Option and Object could recursively contains similar types
 and TypeKind =
     | Prim of PrimTypeKind
-    | Array of TypeKind
+    | Array of TypeKind * Option<DefaultableKind>
     | Option of TypeKind
     | Object of ObjectKind
     | DU of DUKind
@@ -199,9 +199,10 @@ and TypeKind =
                 match schema with
                 | ArrayKind items ->
                     let arrItm, def = TypeKind.Parse items
-                    if def.IsSome then
-                        failwith "Default values aren't supported for array items"
-                    else Array arrItm, None
+                    let isObj = match arrItm with | TypeKind.Object _ -> true | _ -> false 
+                    if def.IsSome && isObj then
+                        failwith "Default values aren't supported for entire objects"
+                    Array (arrItm, def), None
                 | ObjectKind schema ->
                     if schema.Default <> null then
                         failwith "Default values aren't supported for entire objects"
@@ -221,18 +222,39 @@ and TypeSchema =
       Kind: TypeKind
       Docs: Docs option
       DefaultValue: DefaultableKind option }
+    
+    member private schema.DedupeTypeNames() =
+        let obj =
+            match schema.Kind with
+            | TypeKind.Object o -> Some o
+            | _ -> None
+        let name =
+            obj
+            |> Option.bind (fun x -> x.Name)
+            |> Option.defaultValue schema.Name
+        let kind =
+            obj
+            |> Option.map (fun x -> { x with Name = Some name }) 
+            |> Option.map TypeKind.Object
+            |> Option.defaultValue schema.Kind
+        {
+            schema with
+                Name = name
+                Kind = kind
+        }
+    
     static member Parse(name, schema: OpenApiSchema): TypeSchema =
         let kind, def = TypeKind.Parse schema
         { Name = name
           Kind = kind
           DefaultValue = def
-          Docs = Docs.Create(schema.Description, null, schema.Example) }
+          Docs = Docs.Create(schema.Description, null, schema.Example) }.DedupeTypeNames()
         
     static member Parse(name, parameters: OpenApiParameter seq): TypeSchema =
         { Name = name
           Kind = TypeKind.Object (ObjectKind.Create (name, parameters))
           DefaultValue = None
-          Docs = None }
+          Docs = None }.DedupeTypeNames()
 
 /// Supported response media types
 type MediaType =
@@ -362,16 +384,8 @@ let parse (doc: OpenApiDocument): Api =
                                         (
                                            fun (KeyValue(mt, body)) ->
                                                let mediaType = parseMediaType mt
-                                               let name = methodName + opName + "Body" + mediaType.ToString()
+                                               let name = opName + methodName + "Body" + mediaType.ToString()
                                                let schema = TypeSchema.Parse(name, body.Schema)
-                                               let schema =
-                                                   {
-                                                       schema with
-                                                           Kind =
-                                                               match schema.Kind with
-                                                               | TypeKind.Object o -> TypeKind.Object { o with Name = Some name }
-                                                               | v -> v
-                                                   }
                                                Body mediaType, schema
                                         )
                             )

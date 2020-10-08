@@ -32,7 +32,7 @@ let private generateNullCheckersArray sourceVar (schema: TypeSchema) =
                     |> Seq.collect ^ fun (name, kind, _) ->
                         let newPath = [yield! prevPath; NullableValue; Property name]
                         enumeratePaths newPath kind
-              | TypeKind.Array kind ->
+              | TypeKind.Array (kind, _) ->
                   for l in enumeratePaths prevPath kind do
                       let l = l |> List.mapi (fun i v -> i,v)
                       [

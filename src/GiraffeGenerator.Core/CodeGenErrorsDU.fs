@@ -34,7 +34,7 @@ let errInnerType =
                           Properties =
                               [
                                   "TypeName", Prim (PrimTypeKind.String StringFormat.String), None
-                                  "PropertyPath", TypeKind.Array (Prim <| PrimTypeKind.String StringFormat.String), None
+                                  "PropertyPath", TypeKind.Array (Prim <| PrimTypeKind.String StringFormat.String, None), None
                               ]
                           Docs = None
                       }
@@ -42,7 +42,7 @@ let errInnerType =
               {
                   CaseName = Some errInnerCombined
                   Docs = Some { Summary = Some ["Represents multiple errors occured in one location"]; Example = None; Remarks = None }
-                  Kind = TypeKind.Array (DU { Name = errInnerTypeName; Docs = None; Cases = [] })
+                  Kind = TypeKind.Array (DU { Name = errInnerTypeName; Docs = None; Cases = [] }, None)
               }
           ]
   }
@@ -75,7 +75,7 @@ let errOuterType =
               {
                   CaseName = Some errOuterCombined
                   Docs = Some { Summary = Some ["Represents errors in multiple locations"]; Example = None; Remarks = None; }
-                  Kind = TypeKind.Array (DU { Name = errOuterTypeName; Docs = None; Cases = [] })
+                  Kind = TypeKind.Array (DU { Name = errOuterTypeName; Docs = None; Cases = [] }, None)
               }
           ]
   }

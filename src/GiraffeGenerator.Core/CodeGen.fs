@@ -154,22 +154,18 @@ let giraffeAst (api: Api) =
                       if method.Parameters.IsSome then
                         for KeyValue(source, schema) in method.Parameters.Value do
                             if source = Query || not (isNotBody source) then // non-query and non-body bindings don't support default values
-                                let (needsGeneration, tmpType, typeName), generatedTypes = generateOptionalType schema.Kind schema.DefaultValue (Some schema.Name)
-                                if needsGeneration && typeName.IsSome then
-                                    schema, (typeName.Value, tmpType, generatedTypes) ]
+                                let generatedTypes = generateOptionalType schema.Kind schema.DefaultValue (Some schema.Name)
+                                yield! generatedTypes ]
           let tmpBindingSchemasMap =
               tmpBindingSchemas
-              |> Seq.collect (fun (_, (_, _, v)) -> v)
-              |> Seq.map (fun v -> v.OriginalName, (v.GeneratedName, v.Generated))
-              |> Map
-          let tmpBindingSchemasReverseMap =
-              tmpBindingSchemas
-              |> Seq.collect (fun (_, (_, _, v)) -> v)
-              |> Seq.map (fun v -> v.GeneratedName, (v.OriginalName, v.Original))
+              |> Seq.collect (fun v -> [ SourceType v.OriginalName, v; GeneratedType v.GeneratedName, v ])
               |> Map
 
           let allSchemas =
-              [ for path in api.Paths do
+              [ 
+                yield! api.Schemas
+                yield! tmpBindingSchemas |> Seq.map ^ fun v -> { Kind = v.Generated; Name = v.GeneratedName; Docs = None; DefaultValue = None }
+                for path in api.Paths do
                   for method in path.Methods do
                       if method.Parameters.IsSome then
                         for KeyValue(_, schema) in method.Parameters.Value do
@@ -208,9 +204,7 @@ let giraffeAst (api: Api) =
                                                 )
                                             |> Seq.toList
                                     } |> TypeKind.Object
-                            }
-                yield! api.Schemas
-                yield! tmpBindingSchemas |> Seq.map (fun (s,(n,v,_)) -> { s with Kind = v; Name = n }) ]
+                            } ]
 
           if not allSchemas.IsEmpty then types (extractRecords allSchemas)
 
@@ -307,7 +301,7 @@ let giraffeAst (api: Api) =
                                 let maybeQueryBindingType =
                                     maybeQuery
                                     |> Option.map ^ fun q ->
-                                        let tmpSchema = tmpBindingSchemasMap |> Map.tryFind q.Name
+                                        let tmpSchema = tmpBindingSchemasMap |> Map.tryFind (SourceType q.Name)
                                         tmpSchema, q
                                     
                                 let queryBinding = "queryArgs"
@@ -316,13 +310,13 @@ let giraffeAst (api: Api) =
                                     |> Option.map ^ fun (tmpSchema, querySchema) ->
                                         let bindRaw =
                                             app
-                                                (typeApp (longIdentExpr "ctx.TryBindQueryString") [tmpSchema |> Option.map fst |> Option.defaultValue querySchema.Name |> synType])
+                                                (typeApp (longIdentExpr "ctx.TryBindQueryString") [tmpSchema |> Option.map (fun v -> v.GeneratedName) |> Option.defaultValue querySchema.Name |> synType])
                                                 (longIdentExpr "System.Globalization.CultureInfo.InvariantCulture")
                                             ^|> Result.mapErrorExpr (identExpr CodeGenErrorsDU.errInnerGiraffeBinding ^>> identExpr CodeGenErrorsDU.errOuterQuery)
                                         tmpSchema
-                                        |> Option.map ^ fun (_, bindingKind) ->
+                                        |> Option.map ^ fun v ->
                                             bindRaw
-                                            ^|> Result.mapExpr (DefaultsGeneration.generateDefaultMappingFun tmpBindingSchemasReverseMap bindingKind querySchema.Kind)
+                                            ^|> Result.mapExpr (DefaultsGeneration.generateDefaultMappingFunFromSchema tmpBindingSchemasMap v querySchema)
                                         |> Option.defaultValue bindRaw
                                         |> CodeGenNullChecking.bindNullCheckIntoResult "query" querySchema CodeGenErrorsDU.errOuterQuery
                                     |> Option.map ^ letOrUseDecl queryBinding []
@@ -396,7 +390,7 @@ let giraffeAst (api: Api) =
                                 let maybeBodyBindingType =
                                     maybeBodyOpenApi
                                     |> Option.map ^ fun q ->
-                                        let tmpSchema = tmpBindingSchemasMap |> Map.tryFind (snd q).Name
+                                        let tmpSchema = tmpBindingSchemasMap |> Map.tryFind (SourceType (snd q).Name)
                                         tmpSchema, q
                                 let maybeBindBody =
                                     maybeBodyBindingType
@@ -412,15 +406,15 @@ let giraffeAst (api: Api) =
                                                         | v -> failwithf "Content type %A is not supported" v 
                                                     | _ -> failwith "Body should be located in body, you know"
                                                     |> longIdentExpr
-                                                let typeApp = typeApp expr [tmpSchema |> Option.map fst |> Option.defaultValue bodySchema.Name |> synType]
+                                                let typeApp = typeApp expr [tmpSchema |> Option.map (fun v -> v.GeneratedName) |> Option.defaultValue bodySchema.Name |> synType]
                                                 let call = app typeApp (tupleExpr [])
                                                 let bindRaw =
                                                     letBangExpr bodyBinding call (returnExpr ^ app (identExpr "Ok") (identExpr bodyBinding))
                                                 let bindCallIntoResult =
                                                     tmpSchema
-                                                    |> Option.map ^ fun (_, bindingKind) ->
+                                                    |> Option.map ^ fun v ->
                                                         bindRaw
-                                                        ^|> Result.mapExpr (DefaultsGeneration.generateDefaultMappingFun tmpBindingSchemasReverseMap bindingKind bodySchema.Kind)
+                                                        ^|> Result.mapExpr (DefaultsGeneration.generateDefaultMappingFunFromSchema tmpBindingSchemasMap v bodySchema)
                                                     |> Option.defaultValue bindRaw
                                                     |> CodeGenNullChecking.bindNullCheckIntoResult "body" bodySchema CodeGenErrorsDU.errOuterBody
                                                 let catchClause =

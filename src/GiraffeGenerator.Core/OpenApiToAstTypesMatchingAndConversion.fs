@@ -63,7 +63,7 @@ let primTypeMatch =
 let rec extractResponseSynType =
     function
     | Prim primType -> primTypeMatch primType
-    | Array innerType -> arrayOf (extractResponseSynType innerType)
+    | Array (innerType, _) -> arrayOf (extractResponseSynType innerType)
     | Option innerType -> optionOf (extractResponseSynType innerType)
     | BuiltIn builtIn -> synType builtIn
     | Object { Name = Some name } -> synType name
@@ -107,10 +107,10 @@ let extractRecords (schemas: TypeSchema list) =
         match kind with
         | Prim primType -> primTypeMatch primType
         | BuiltIn builtIn -> synType builtIn
-        | Array innerType -> arrayOf (extractSynType (getOwnName innerType (fun () -> name), innerType))
+        | Array (innerType, _) -> arrayOf (extractSynType (getOwnName innerType (fun () -> name), innerType))
         | Option innerType -> optionOf (extractSynType (getOwnName innerType (fun () -> name), innerType))
         | Object objectKind ->
-
+            let name = getOwnName kind ^ fun _ -> name
             // extract field types
             let fields =
                 objectKind.Properties
@@ -165,8 +165,21 @@ let extractRecords (schemas: TypeSchema list) =
     dus
     |> Seq.append records
     |> Seq.toList
+    
+[<Struct>]
+type GeneratedOptionalTypeMappingNameKind =
+    | GeneratedType of generatedTypeName:string
+    | SourceType of sourceTypeName:string
+    
+type GeneratedOptionalTypeMapping =
+    {
+        GeneratedName: string
+        Generated: TypeKind
+        OriginalName: string
+        Original: TypeKind
+    }
 let mutable private optionalTypes = 0
-let rec generateOptionalType kind def nameFromSchema =
+let rec private generateOptionalTypeInternal kind def nameFromSchema =
     match kind with
     | TypeKind.Object o ->
       let mutable hasPropertiesWithDefault = false
@@ -174,17 +187,11 @@ let rec generateOptionalType kind def nameFromSchema =
       let props =
           o.Properties
           |> List.map ^ fun (name, kind, def) ->
-              let (hasDefault, kind, _), (subGenerated: {| GeneratedName:string; Generated:TypeKind; OriginalName:string; Original: TypeKind|} list) = generateOptionalType kind def (Some name)
+              let (hasDefault, generatedKind), (subGenerated: GeneratedOptionalTypeMapping list) = generateOptionalTypeInternal kind def (Some name)
               if hasDefault then
                   hasPropertiesWithDefault <- true
-              let maybeObj = match kind with | TypeKind.Option (TypeKind.Object v) -> TypeKind.Object v |> Some | _ -> None
-              if hasDefault && maybeObj.IsSome then
-                  let (isNew, newKind, _), subGenerated = generateOptionalType maybeObj.Value None (Some name)
-                  if isNew then
-                      subGenerated, (name, TypeKind.Option newKind, None)
-                  else subGenerated, (name, TypeKind.Option kind, def)
-              else
-                subGenerated, (name, kind, def)
+              let kind = if hasDefault then generatedKind else kind
+              subGenerated, (name, kind, def)
       
       let kind =
           {
@@ -192,32 +199,40 @@ let rec generateOptionalType kind def nameFromSchema =
                   Name = o.Name
                   |> Option.orElse nameFromSchema
                   |> Option.map (fun x -> x + "ForBinding")
-                  |> Option.defaultWith
+                  |> Option.orElseWith
                          (
                              fun _ ->
-                                 sprintf "TemporaryTypeForBinding%d" <| System.Threading.Interlocked.Increment(ref optionalTypes)
-                         ) |> Some
+                                 sprintf "TemporaryTypeForBinding%d" (System.Threading.Interlocked.Increment(ref optionalTypes)) |> Some
+                         )
                   Properties = props |> List.map snd
           }
       let generated =
           [
-              if kind.Name.IsSome then
-                  {|
+              if hasPropertiesWithDefault then
+                  {
                       OriginalName = o.Name |> Option.orElse nameFromSchema |> Option.get
                       Original = TypeKind.Object o
                       GeneratedName = kind.Name.Value
                       Generated = TypeKind.Object kind
-                  |}
+                  }
               yield! props |> Seq.collect fst
           ]
-      (hasPropertiesWithDefault, TypeKind.Object kind, kind.Name), generated
+      (hasPropertiesWithDefault, TypeKind.Object kind), generated
     | TypeKind.Option opt ->
-        (true, TypeKind.Option opt, None), []
+        let (hasDef, kind), generated = generateOptionalTypeInternal opt def nameFromSchema
+        let kind = if hasDef then kind else opt
+        (hasDef, TypeKind.Option kind), generated
+    | TypeKind.Array (item, def) ->
+        let (hasDef, kind), generated = generateOptionalTypeInternal item def nameFromSchema
+        let kind = if hasDef then kind else item
+        (hasDef, TypeKind.Array (kind, def)), generated 
     | v ->
       let isDefaultable = Option.isSome def
       let kind = if isDefaultable then TypeKind.Option v else v
-      (isDefaultable, kind, None), []
-      
+      (isDefaultable, kind), []
+let generateOptionalType kind def nameFromSchema =
+    generateOptionalTypeInternal kind def nameFromSchema
+    |> snd
 
 let rec defaultToExpr v =
     let inline cnst syn v =
@@ -249,36 +264,79 @@ let rec defaultToExpr v =
         app (longIdentExpr "System.DateTimeOffset") (tupleComplexExpr [ dtTicks; ts ])
     |> paren
     
+/// rec module here is for cross-recursion mapping <-> fun x -> mapping
+/// mapping -> fun... dependency is required for mapping of options and arrays
+/// e.g.
+/// Result.map (fun (x: SomeTypeForBinding) ->
+///   let v: SomeType =
+///     { intWithDefault = x.intWithDefault |> Option.defaultValue 100
+///       optionalArrayOfArrayOption =
+///         x.optionalArrayOfArrayOption
+///         |> Option.map (fun (x: AnotherTypeForBinding array option array) ->
+///              x |> Array.map (fun (x: AnotherTypeForBinding array option) ->
+///                     x |> Option.map (fun (x: AnotherTypeForBinding array) ->
+///                            x |> Array.map (fun (x: AnotherTypeForBinding) ->
+///                                   let v: AnotherType =
+///                                     { forGodsSakeWhy = x.forGodsSakeWhy |> Option.defaultValue "pa$$word"
+///                                       andNonDefaultableToo = x.andNonDefaultableToo}
+///                                 )
+///                          )
+///                   )
+///            )
+/// )
+/// where `fun (x[: Type]) -> [let v = ](mapping);[v]` are generated by generateDefaultMappingFun* family of functions
+/// and (mapping) itself is generated by generateDefaultMapping function 
 module rec DefaultsGeneration =
-    let rec generateDefaultRecordMapping defaultsMap instanceName source =
-        let source = match source with TypeKind.Object o -> o | _ -> failwith "source should be an object"
-        recordExpr
-            [
-                for name, kind, def in source.Properties do
-                    let propPath = instanceName + "." + name
-                    let indented = longIdentExpr propPath
-                    match kind with
-                    | TypeKind.Object _ ->
-                        name, generateDefaultRecordMapping defaultsMap propPath kind
-                    | TypeKind.Option v ->
-                        let obj = match v with | TypeKind.Object o -> Some o | _ -> None
-                        if def.IsSome then
-                            name, indented ^|> Option.defaultValueExpr (defaultToExpr def.Value)
-                        elif obj.IsSome then
-                            let _, originalKind = defaultsMap |> Map.find (obj.Value.Name |> Option.defaultValue name)
-                            name, indented ^|> Option.mapExpr (generateDefaultMappingFun defaultsMap v originalKind)
-                        else name, indented
-                    | _ ->
-                        if def.IsSome then
-                            name, indented ^|> longIdentExpr "Option.ofObj" ^|> Option.defaultValueExpr (defaultToExpr def.Value)
-                        else
-                            name, indented
-            ]
+    let private generateBestPossibleFunc kind defaultsMap def nameFromSchema =
+        getOwnName kind ^ fun _ -> Unchecked.defaultof<string>
+        |> Option.ofObj
+        |> Option.map GeneratedType
+        |> Option.map Map.tryFind
+        |> Option.bind ((|>) defaultsMap)
+        |> Option.map (generateDefaultMappingFunFromMapping defaultsMap def)
+        |> Option.defaultWith (fun _ -> generateDefaultMappingFunFromKind defaultsMap kind def nameFromSchema)
+    
+    let rec private generateDefaultMapping defaultsMap source def nameFromSchema instanceName =
+        match source with
+            | TypeKind.Object source ->
+                recordExpr
+                    [
+                        for name, kind, def in source.Properties do
+                            let propPath = instanceName + "." + name
+                            name, generateDefaultMapping defaultsMap kind def name propPath
+                    ]
+            | TypeKind.Array (item, def) ->
+                let indented = longIdentExpr instanceName
+                if def.IsSome then
+                    let func = generateBestPossibleFunc item defaultsMap def nameFromSchema
+                    indented ^|> app (longIdentExpr "Array.map") func
+                else indented 
+            | TypeKind.Option v ->
+                let indented = longIdentExpr instanceName
+                if def.IsSome then
+                    indented ^|> Option.defaultValueExpr (defaultToExpr def.Value)
+                else
+                    let func = generateBestPossibleFunc v defaultsMap def nameFromSchema
+                    indented ^|> Option.mapExpr func
+            | _ ->
+                let indented = longIdentExpr instanceName
+                if def.IsSome then
+                    indented ^|> longIdentExpr "Option.ofObj" ^|> Option.defaultValueExpr (defaultToExpr def.Value)
+                else
+                    indented
 
-    let generateDefaultMappingFun defaultsMap source outType =
+    let private generateDefaultMappingFunFromKind defaultsMap kind sourceDef nameFromSchema =
         let param = "src"
-        let recordExpr = generateDefaultRecordMapping defaultsMap param source
+        let recordExpr = generateDefaultMapping defaultsMap kind sourceDef nameFromSchema param
+        lambda (simplePats [SynSimplePat.Typed(simplePat param, extractResponseSynType kind, r)]) recordExpr
+
+    let private generateDefaultMappingFunFromMapping defaultsMap sourceDef (mapping: GeneratedOptionalTypeMapping) =
+        let param = "src"
+        let recordExpr = generateDefaultMapping defaultsMap mapping.Generated sourceDef mapping.OriginalName param
         let bindWithTypeAndReturn =
-            letOrUseComplexDecl (SynPat.Typed(SynPat.Named(SynPat.Wild r, ident "v", false, None, r), extractResponseSynType outType, r))
+            letOrUseComplexDecl (SynPat.Typed(SynPat.Named(SynPat.Wild r, ident "v", false, None, r), synType mapping.OriginalName, r))
                 recordExpr (identExpr "v")
-        lambda (simplePats [simplePat param]) bindWithTypeAndReturn |> paren
+        lambda (simplePats [SynSimplePat.Typed(simplePat param, synType mapping.GeneratedName, r)]) bindWithTypeAndReturn
+        
+    let generateDefaultMappingFunFromSchema defaultsMap mapping (schema: TypeSchema) =
+        generateDefaultMappingFunFromMapping defaultsMap schema.DefaultValue mapping
