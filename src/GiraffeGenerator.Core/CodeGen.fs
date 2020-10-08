@@ -20,7 +20,11 @@ let private createRouteHandler path method =
         method.Method.ToUpperInvariant() |> identExpr
 
     let serviceCall = service method.Name
-    if method.Parameters.IsSome then verb >=> routeBind path serviceCall else verb >=> route path >=> serviceCall
+    let hasPathParameters =
+        method.Parameters
+        |> Option.map (Map.toSeq >> Seq.map fst >> Seq.map ((=) Path) >> Seq.reduce (||))
+        |> Option.defaultValue false
+    if hasPathParameters then verb >=> routeBind path serviceCall else verb >=> route path >=> serviceCall
 
 /// helper function to create Giraffe flows:
 /// {method.Method} >=> route {path.Route} >=> service.{method.Name}
