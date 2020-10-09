@@ -109,7 +109,7 @@ let innerErrToStringDecl =
     [
         errInnerGiraffeBinding, err, sprintfExpr "%sGiraffe binding error: %s" [identExpr sepVar; identExpr err]
         errInnerModelBindingUnexpectedNull, err,
-            sprintfExpr "%sUnexpected null was found at path %s.%s"
+            sprintfExpr "%sUnexpected null was found somewhere on path %s.%s"
             ^ [identExpr sepVar; longIdentExpr (sprintf "%s.TypeName" err); paren (app (app (longIdentExpr "String.concat") (strExpr ".")) (longIdentExpr (sprintf "%s.PropertyPath" err))) ]
         errInnerFormatterBindingExn, err, longIdentExpr (sprintf "%s.Message" err)
         errInnerCombined, err,

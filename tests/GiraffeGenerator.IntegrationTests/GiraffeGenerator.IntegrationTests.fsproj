@@ -19,14 +19,19 @@
     <Compile Include="SpecWithParametersAndRequestBodySchemas.fs">
       <OpenApiSpecFile>specs/specWithParametersAndRequestBodySchemas.yaml</OpenApiSpecFile>
     </Compile>
+    <Compile Include="SpecForNullChecking.fs">
+      <OpenApiSpecFile>specs/specForNullChecking.yaml</OpenApiSpecFile>
+    </Compile>
     <None Include="NuGet.Config" />
     <Compile Include="SpecSimpleTests.fs" />
     <Compile Include="SpecWithSchemasTests.fs" />
     <Compile Include="SpecWithArgumentsTests.fs" />
     <Compile Include="SpecWithParametersAndRequestBodyTests.fs" />
+    <Compile Include="SpecForNullCheckingTests.fs" />
     <Content Include="RemoveGenerated.ps1" />
     <Content Include="specs\specWithSchemas.yaml" />
     <Content Include="specs\specWithParametersAndRequestBodySchemas.yaml" />
+    <Content Include="specs\specForNullChecking.yaml" />
     <Content Include="specs\specWithArguments.yaml" />
     <Content Include="specs\specSimple.yaml" />
   </ItemGroup>

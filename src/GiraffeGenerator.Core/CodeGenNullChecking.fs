@@ -48,9 +48,13 @@ let generateNullCheckingHelpers () =
                                 )
                         )
                         (
-                            app (identExpr "accessor") (identExpr value)
-                            ^|> Seq.filterExpr _id
-                            ^|> Seq.mapExpr (identExpr "v")
+                            let tryEnumerate =
+                                app (identExpr "accessor") (identExpr value)
+                                ^|> Seq.filterExpr _id
+                                ^|> Seq.mapExpr (identExpr "v")
+                            let clausePat = SynPat.IsInst(synType "System.NullReferenceException", r)
+                            let clauseBody = app (identExpr "v") (tupleExpr []) ^|> app (longIdentExpr "Seq.replicate") (constExpr (SynConst.Int32 1))
+                            SynExpr.TryWith(tryEnumerate,r,[Clause(clausePat,None,clauseBody,r,DebugPointForTarget.Yes)],r,r,DebugPointAtTry.Yes r, DebugPointAtWith.Yes r)
                         )
                 )
                 (
@@ -77,7 +81,6 @@ let generateNullCheckingHelpers () =
 type private Modifier =
     | Arr
     | Opt
-    | Nul
 module private Modifiers =
     let private notNull = Seq.mapExpr (longIdentExpr nullReferenceToOption) ^|> Seq.chooseExpr _id
     let rec mapExprToSeqOfB currentMods expr =
@@ -86,7 +89,6 @@ module private Modifiers =
             match h with
             | Arr -> expr ^|> Seq.collectExpr _id
             | Opt -> expr ^|> Seq.chooseExpr _id
-            | Nul -> expr ^|> notNull
         | [] -> expr
         | h1::h2::t ->
             let f =
@@ -95,11 +97,6 @@ module private Modifiers =
                 | Opt,Opt -> failwith "'a option option should never be generated"
                 | Arr,Opt -> Seq.collectExpr _id ^|> Seq.chooseExpr _id
                 | Opt,Arr -> Seq.chooseExpr _id ^|> Seq.collectExpr _id
-                | Nul,Arr -> notNull ^|> Seq.collectExpr _id
-                | Arr,Nul -> Seq.collectExpr _id ^|> notNull
-                | Opt,Nul -> Seq.chooseExpr _id ^|> notNull
-                | Nul,Opt -> failwith "Option nullcheck should not be generated as options can't be nulls by occasion (or should not be generated in cases when the value can)"
-                | Nul,Nul -> failwith "Double nullcheck should not be generated as it has no meaning"
             let expr = expr ^|> f
             mapExprToSeqOfB t expr
 
@@ -112,7 +109,7 @@ let private generateNullCheckersArray sourceVar (schema: TypeSchema) =
                 yield!
                     o.Properties
                     |> Seq.collect ^ fun (name, kind, _) ->
-                        let newPath = [yield! prevPath; NullableValue; Property name]
+                        let newPath = [yield! prevPath; Property name]
                         enumeratePaths newPath kind
               | TypeKind.Array (kind, _) ->
                   for l in enumeratePaths prevPath kind do
@@ -147,7 +144,7 @@ let private generateNullCheckersArray sourceVar (schema: TypeSchema) =
                     yield! analyze expr path [Opt; yield! mods] [o;yield!t]
                 | CollectionValue c ->
                     let expr = expr |> Option.defaultWith (fun _ -> failwith "There should be at some access to a value before the value itself")
-                    yield! analyze (Some expr) path [Nul; Arr; yield! mods] [c;yield!t]
+                    yield! analyze (Some expr) path [Arr; yield! mods] [c;yield!t]
                 | Property p ->
                     let path =
                         [
@@ -160,7 +157,6 @@ let private generateNullCheckersArray sourceVar (schema: TypeSchema) =
                                            function
                                            | Arr -> Some "[i]"
                                            | Opt -> Some "?Value"
-                                           | Nul -> None
                                        )
                                 |> Seq.choose id
                         ]
@@ -179,7 +175,7 @@ let private generateNullCheckersArray sourceVar (schema: TypeSchema) =
                     // the value is nullable, so check it
                     yield (path, Modifiers.mapExprToSeqOfB mods expr ^|> Seq.mapExpr (identExpr isNullReference))
                     // and continue the analysis
-                    yield! analyze (Some expr) path [Nul; yield! mods] t
+                    yield! analyze (Some expr) path mods t
             | _ -> ()
         }
     enumeratePaths [Property sourceVar] schema.Kind
