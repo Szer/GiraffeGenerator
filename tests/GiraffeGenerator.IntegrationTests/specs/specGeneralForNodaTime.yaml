@@ -1,0 +1,147 @@
+openapi: "3.0.0"
+info:
+  title: Spec for general noda time testing
+  version: 1
+paths:
+  /id:
+    post:
+      operationId: postId
+      parameters:
+        - schema:
+            type: string
+            format: date
+          name: dateParam
+          in: query
+          required: false
+        - schema:
+            type: string
+            format: time
+          name: timeParam
+          in: query
+          required: false
+        - schema:
+            type: string
+            format: offset
+          name: offsetParam
+          in: query
+          required: false
+        - schema:
+            type: string
+            format: duration
+          name: durationParam
+          in: query
+          required: false
+        - schema:
+            type: string
+            format: instant
+          name: instantParam
+          in: query
+          required: false
+        - schema:
+            type: string
+            format: local-date-time
+          name: localDateTimeParam
+          in: query
+          required: false
+        - schema:
+            type: string
+            format: offset-date-time
+          name: offsetDateTimeParam
+          in: query
+          required: false
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/dataSetListInput'
+      responses:
+        '200':
+          description: returns input combined into a single object
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dataSetListOutput'
+components:
+  schemas:
+    forDefaultsTesting:
+      type: object
+      properties:
+        dateParamFromBody:
+          type: string
+          format: date
+          default: '2020-10-21'
+        timeParamFromBody:
+          type: string
+          format: time
+          default: '19:58:12'
+        offsetParamFromBody:
+          type: string
+          format: offset
+          default: '-14:55:01'
+        timeZoneParamFromBody:
+          type: string
+          format: time-zone
+          default: 'Europe/Moscow'
+        periodParamFromBody:
+          type: string
+          format: period
+          default: 'P13DT49H156M'
+        durationParamFromBody:
+          type: string
+          format: duration
+          default: '-364:36:00'
+        instantParamFromBody:
+          type: string
+          format: instant
+          default: '2020-10-21T16:59:12.0000001Z'
+        localDateTimeParamFromBody:
+          type: string
+          format: local-date-time
+          default: '2020-10-21T19:59:12.0000001'
+        offsetDateTimeParamFromBody:
+          type: string
+          format: offset-date-time
+          default: '2020-10-21T19:59:12.0000001+03:00'
+    dataSetListInput:
+      type: object
+      properties:
+        forDefaultsTesting:
+          $ref: '#/components/schemas/forDefaultsTesting'
+        zonedDateTime:
+          type: string
+          format: zoned-date-time
+      required:
+        - forDefaultsTesting
+        - zonedDateTime
+    dataSetListOutput:
+      type: object
+      properties:
+        dateParamFromQuery:
+          type: string
+          format: date
+        timeParamFromQuery:
+          type: string
+          format: time
+        offsetParamFromQuery:
+          type: string
+          format: offset
+        durationParamFromQuery:
+          type: string
+          format: duration
+        instantParamFromQuery:
+          type: string
+          format: instant
+        localDateTimeParamFromQuery:
+          type: string
+          format: local-date-time
+        offsetDateTimeParamFromQuery:
+          type: string
+          format: offset-date-time
+        forDefaultsTesting:
+          $ref: '#/components/schemas/forDefaultsTesting'
+        zonedDateTime:
+          type: string
+          format: zoned-date-time
+      required:
+        - forDefaultsTesting
+        - zonedDateTime
