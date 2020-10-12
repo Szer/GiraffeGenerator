@@ -63,7 +63,7 @@ let main argv =
         |> Seq.map (fun err -> sprintf "%s (at %s)" err.Message err.Pointer)
         |> String.concat "\n"
         |> failwith
-    let api = parse doc
+    let api = parse config doc
     
     let resultSource =
         giraffeAst config api

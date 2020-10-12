@@ -51,10 +51,10 @@ let strFormatDefaultMatch =
 
 let strFormatNodaTimeDateTimeMatch =
     function
-    | ZonedDateTime -> nodaTypes.ZonedDateTime
-    | OffsetDateTime -> nodaTypes.OffsetDateTime
-    | LocalDateTime -> nodaTypes.LocalDateTime
-    | Instant -> nodaTypes.Instant
+    | DateTimeGeneratedType.ZonedDateTime -> nodaTypes.ZonedDateTime
+    | DateTimeGeneratedType.OffsetDateTime -> nodaTypes.OffsetDateTime
+    | DateTimeGeneratedType.LocalDateTime -> nodaTypes.LocalDateTime
+    | DateTimeGeneratedType.Instant -> nodaTypes.Instant
 
 let strFormatNodaTimeMatch config =
     function
@@ -268,10 +268,94 @@ let generateOptionalType kind def nameFromSchema =
     generateOptionalTypeInternal kind def nameFromSchema
     |> snd
 
-let rec defaultToExpr v =
+let rec defaultToExpr config v =
+    let inline defaultToExpr v = defaultToExpr config v
     let inline cnst syn v =
         constExpr (syn v)
     match v with
+    | DefaultableKind.Noda nt ->
+        if not config.UseNodaTime then
+            failwith "No NodaTime types should be used if user doesn't ask for NodaTime"
+        let calendarSystem (s: NodaTime.CalendarSystem) =
+            app (longIdentExpr "NodaTime.CalendarSystem.ForId") (strExpr s.Id)
+        let era =
+            function
+            | x when x = NodaTime.Calendars.Era.Bahai -> "NodaTime.Calendars.Era.Bahai"
+            | x when x = NodaTime.Calendars.Era.Common -> "NodaTime.Calendars.Era.Common"
+            | x when x = NodaTime.Calendars.Era.AnnoHegirae -> "NodaTime.Calendars.Era.AnnoHegirae"
+            | x when x = NodaTime.Calendars.Era.AnnoMartyrum -> "NodaTime.Calendars.Era.AnnoMartyrum"
+            | x when x = NodaTime.Calendars.Era.AnnoMundi -> "NodaTime.Calendars.Era.AnnoMundi"
+            | x when x = NodaTime.Calendars.Era.AnnoPersico -> "NodaTime.Calendars.Era.AnnoPersico"
+            | x when x = NodaTime.Calendars.Era.BeforeCommon -> "NodaTime.Calendars.Era.BeforeCommon"
+            | e -> failwithf "Unknown era %s" e.Name
+            >> longIdentExpr
+            
+        match nt with
+        | Instant i -> app (longIdentExpr "NodaTime.Instant.FromUnixTimeTicks") (cnst SynConst.Int64 (i.ToUnixTimeTicks()))
+        | LocalDate d ->
+            let components =
+                [
+                  d.YearOfEra
+                  d.Month
+                  d.Day
+                ] |> List.map (cnst SynConst.Int32)
+            let era = era d.Era
+            let calendar = calendarSystem d.Calendar
+            let components = [ era; yield! components; calendar ]
+            app (longIdentExpr "NodaTime.LocalDate") (tupleComplexExpr components)
+        | LocalTime t ->
+            app (longIdentExpr "NodaTime.LocalTime.FromTicksSinceMidnight") (cnst SynConst.Int64 t.TickOfDay)
+        | LocalDateTime ldt -> 
+            let instant = ldt.InUtc().ToInstant() |> Instant |> Noda |> defaultToExpr
+            let calendar = calendarSystem ldt.Calendar
+            let utc = longIdentExpr "NodaTime.DateTimeZone.Utc"
+            let components = [utc; calendar]
+            letExpr "inst" [] instant
+                ^ letExpr "zdt" []
+                    (app (longIdentExpr "inst.InZone") (tupleComplexExpr components))
+                    (longIdentExpr "zdt.LocalDateTime")
+        | OffsetDateTime odt ->
+            let ldt = defaultToExpr (Noda ^ LocalDateTime odt.LocalDateTime)
+            let offset = defaultToExpr (Noda ^ Offset odt.Offset)
+            app (longIdentExpr "NodaTime.OffsetDateTime") (tupleComplexExpr [ldt; offset])
+        | ZonedDateTime zdt ->
+            let instant = defaultToExpr (Noda ^ Instant ^ zdt.ToInstant())
+            let zone = defaultToExpr (Noda ^ DateTimeZone zdt.Zone)
+            let calendar = calendarSystem zdt.Calendar
+            app (longIdentExpr "NodaTime.ZonedDateTime") (tupleComplexExpr [instant; zone; calendar])
+        | Offset o ->
+            app (longIdentExpr "NodaTime.Offset.FromTicks") (cnst SynConst.Int64 o.Ticks)
+        | Duration d ->
+            app (longIdentExpr "NodaTime.Duration.FromTicks") (cnst SynConst.Double d.TotalTicks)
+        | Period p ->
+            let assigns =
+                // not something like "FromTicks" because period P1H1M is different from P61M 
+                [
+                    "Years", SynConst.Int32 p.Years
+                    "Months", SynConst.Int32 p.Months
+                    "Weeks", SynConst.Int32 p.Weeks
+                    "Days", SynConst.Int32 p.Days
+                    "Hours", SynConst.Int64 p.Hours
+                    "Minutes", SynConst.Int64 p.Minutes
+                    "Seconds", SynConst.Int64 p.Seconds
+                    "Milliseconds", SynConst.Int64 p.Milliseconds
+                    "Ticks", SynConst.Int64 p.Ticks
+                    "Nanoseconds", SynConst.Int64 p.Nanoseconds
+                ]
+            let builder = app (longIdentExpr "NodaTime.PeriodBuilder") (tupleExpr [])
+            let var = "builder"
+            let doAssigns =
+                assigns
+                |> List.filter (snd >> function | SynConst.Int32 v -> v <> 0 | SynConst.Int64 v -> v <> 0L | _ -> true)
+                |> List.map (fun (n,v) -> sprintf "%s.%s" var n, v)
+                |> List.map (fun (n,v) -> SynExpr.LongIdentSet(longIdentWithDots n, constExpr v, r))
+                |> List.append
+            let doAssigns =
+                doAssigns [app (longIdentExpr (sprintf "%s.Build" var)) (tupleExpr [])]
+                |> seqExprs
+            letExpr var [] builder doAssigns
+        | DateTimeZone z ->
+            app (longIdentExpr "NodaTime.DateTimeZoneProviders.Tzdb.Item") (strExpr z.Id)
     | DefaultableKind.Boolean b -> cnst SynConst.Bool b
     | DefaultableKind.Date d ->
         let components =
@@ -354,7 +438,7 @@ module rec DefaultsGeneration =
                 else false, indented
             | TypeKind.Option v ->
                 if def.IsSome then
-                    true, indented ^|> Option.defaultValueExpr (defaultToExpr def.Value)
+                    true, indented ^|> Option.defaultValueExpr (defaultToExpr config def.Value)
                 else
                     let hasDefaults, func = generateBestPossibleFunc config v defaultsMap def nameFromSchema
                     if hasDefaults then
