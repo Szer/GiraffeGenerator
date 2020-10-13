@@ -90,13 +90,21 @@ module private Modifiers =
             | Arr -> expr ^|> Seq.collectExpr _id
             | Opt -> expr ^|> Seq.chooseExpr _id
         | [] -> expr
+        | h1::h2::h3::t when (h1,h2,h3) = (Arr,Opt,Arr) ->
+            let f = Seq.collectExpr _id ^|> Seq.chooseExpr _id ^|> Seq.collectExpr _id
+            let expr = expr ^|> f
+            mapExprToSeqOfB t expr
+        | h1::h2::h3::t when (h1,h2,h3) = (Opt,Arr,Opt) ->
+            let f = Seq.chooseExpr _id ^|> Seq.collectExpr _id ^|> Seq.chooseExpr _id
+            let expr = expr ^|> f
+            mapExprToSeqOfB t expr
         | h1::h2::t ->
             let f =
                 match h1,h2 with
                 | Arr,Arr -> Seq.collectExpr _id ^|> Seq.collectExpr _id
                 | Opt,Opt -> failwith "'a option option should never be generated"
-                | Arr,Opt -> Seq.collectExpr _id ^|> Seq.chooseExpr _id
-                | Opt,Arr -> Seq.chooseExpr _id ^|> Seq.collectExpr _id
+                | Opt,Arr -> Seq.collectExpr _id ^|> Seq.chooseExpr _id
+                | Arr,Opt -> Seq.chooseExpr _id ^|> Seq.collectExpr _id
             let expr = expr ^|> f
             mapExprToSeqOfB t expr
 
