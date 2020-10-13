@@ -114,42 +114,6 @@ let abstractMemberDfn docs name returnType =
 let abstractGetterDfn docs name returnType: SynMemberDefn =
     abstractDfn docs MemberKind.PropertyGet propertyVal name returnType
 
-/// Expression for implementing any member kind in class
-let implDefn memberKind isOverride name args expr =
-    SynMemberDefn.Member
-        (SynBinding.Binding
-            (None,
-             SynBindingKind.NormalBinding,
-             false,
-             false,
-             [],
-             PreXmlDoc.Empty,
-             SynValData
-                 (Some
-                     { IsInstance = true
-                       IsDispatchSlot = false
-                       IsOverrideOrExplicitImpl = isOverride
-                       IsFinal = false
-                       MemberKind = memberKind },
-                  curriedArgs args,
-                  None),
-             SynPat.LongIdent(longIdentWithDots ("this." + name), None, None, ctorArgs args, None, r),
-             None,
-             expr,
-             r,
-             NoDebugPointAtInvisibleBinding),
-         r)
-
-/// Expression for override method
-/// override __.{name} {args} = {expr}
-let methodImplDefn name args expr =
-    implDefn MemberKind.Member true name args expr
-
-/// Expression for override getter
-/// override __.{name} = {expr}
-let propertyImplDefn name expr =
-    implDefn MemberKind.PropertyGet true name [] expr
-
 /// Expression for creating single attribute
 let attr name: SynAttributeList =
     { Attributes =
@@ -338,8 +302,14 @@ let appI funExpr argExpr =
 let typeApp a b =
     SynExpr.TypeApp(a,r,b,[],None,r,r)
 
+/// Parenthesizes expression
+let paren expr =
+    SynExpr.Paren(expr, expr.Range.StartRange, Some expr.Range.EndRange, expr.Range)
+
 /// Expression for Ident
-let identExpr name = SynExpr.Ident(ident name)
+let identExpr name =
+    if name = "()" then SynExpr.Tuple(false, [], [ r ], r) |> paren
+    else SynExpr.Ident(ident name)
 
 /// Expression for empty Ident with non-zero range for proper indentation in list comprehensions
 let emptyIdent = SynExpr.Ident(Ident("", r1))
@@ -382,10 +352,6 @@ let chooseExpr exprList =
 /// {e1} >=> {e2}
 let (>=>) e1 e2 =
     app (appI (identExpr "op_GreaterEqualsGreater") e1) e2
-
-/// Parenthesizes expression
-let paren expr =
-    SynExpr.Paren(expr, expr.Range.StartRange, Some expr.Range.EndRange, expr.Range)
 
 
 let constExpr value =
@@ -508,6 +474,54 @@ let uriType = synType "System.Uri"
 /// {name}: {fieldType}
 let field name fieldType =
     SynField.Field([], false, Some(ident name), fieldType, false, PreXmlDoc.Empty, None, r)
+   
+/// Tuple pattern (for arg list or matching) 
+let tuplePat args =
+    SynPat.Paren(SynPat.Tuple(false, args |> List.map (fun v -> SynPat.Named(SynPat.Wild(r), ident v, false, None, r)), r), r)
+
+/// Expression for implementing any member kind in class
+let implDefn memberKind isOverride name args expr =
+    let methodArgs =
+        if args = ["()"] then
+            SynValInfo([[emptyArg]], emptyArg)
+        else curriedArgs args
+    let ctorArgs =
+        if args = ["()"] then
+            Pats [tuplePat []]
+        else ctorArgs args
+    SynMemberDefn.Member
+        (SynBinding.Binding
+            (None,
+             SynBindingKind.NormalBinding,
+             false,
+             false,
+             [],
+             PreXmlDoc.Empty,
+             SynValData
+                 (Some
+                     { IsInstance = true
+                       IsDispatchSlot = false
+                       IsOverrideOrExplicitImpl = isOverride
+                       IsFinal = false
+                       MemberKind = memberKind },
+                  methodArgs,
+                  None),
+             SynPat.LongIdent(longIdentWithDots ("this." + name), None, None, ctorArgs, None, r),
+             None,
+             expr,
+             r,
+             NoDebugPointAtInvisibleBinding),
+         r)
+
+/// Expression for override method
+/// override __.{name} {args} = {expr}
+let methodImplDefn name args expr =
+    implDefn MemberKind.Member true name args expr
+
+/// Expression for override getter
+/// override __.{name} = {expr}
+let propertyImplDefn name expr =
+    implDefn MemberKind.PropertyGet true name [] expr
 
 /// Module type declarations
 let types typeDefinitions = SynModuleDecl.Types(typeDefinitions, r)
@@ -548,10 +562,6 @@ let tupleComplexExpr args =
 /// ({args[0]}, {args[1]}, ...)
 let tupleExpr args =
     tupleComplexExpr (List.map identExpr args)
-    
-/// Tuple pattern (for arg list or matching) 
-let tuplePat args =
-    SynPat.Paren(SynPat.Tuple(false, args |> List.map (fun v -> SynPat.Named(SynPat.Wild(r), ident v, false, None, r)), r), r)
 
 /// Simple match clause expr
 /// | {pat} -> {expr}

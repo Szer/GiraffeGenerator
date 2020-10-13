@@ -285,6 +285,8 @@ let giraffeAst (api: Api) =
                               then choiceOf responseTypes
                               else responseTypes.Head
                               
+                          let respondsUnit = method.Responses |> List.map (fun x -> x.Kind) = [NoType]
+                          
                           let fullInputReturnType =
                               maybeParams
                               // ({param} * HttpContext)
@@ -510,7 +512,15 @@ let giraffeAst (api: Api) =
                                                 ]
                                       )                      
                                       (returnBang                                                                             
-                                       ^ curriedCall (sprintf "this.%sOutput" method.Name) [ "input"; "next"; "ctx" ])
+                                       ^ curriedCall (sprintf "this.%sOutput" method.Name)
+                                             [
+                                                 if respondsUnit then
+                                                     "()"
+                                                 else
+                                                    "input"
+                                                 "next"
+                                                 "ctx"
+                                             ])
 
                                 let makeCall maybeBind finalCall =
                                     maybeBind
@@ -595,13 +605,13 @@ let giraffeAst (api: Api) =
                               if method.Responses.Length > 1 then
                                 matchExpr "input" ^methodResponseToClause method.Responses
                               else
-                                response2handler method.Responses.Head "input"
+                                response2handler method.Responses.Head (if respondsUnit then "()" else "input")
                           
                           // override this.{method.Name}Output input =
                           //    match input with
                           //    | Choice1Of2 array -> json array
                           //    | Choice2Of2 () -> setStatusCode 404 }
-                          methodImplDefn (method.Name + "Output") ["input"] body ]
+                          methodImplDefn (method.Name + "Output") [if not respondsUnit then "input" else "()"] body ]
 
           let routes = api.Paths |> List.map createRoute
 
