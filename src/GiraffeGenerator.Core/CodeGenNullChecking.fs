@@ -184,7 +184,7 @@ let private generateNullCheckersArray sourceVar (schema: TypeSchema) =
     |> Seq.map ^ fun (path, expr) ->
             let typeName = getOwnName schema.Kind (fun _ -> schema.Name) |> strExpr
             let pathList = SynExpr.ArrayOrList(true, path |> List.skip 1 |> List.map strExpr, r)
-            let checker = lambda (simplePats [SynSimplePat.Typed(simplePat sourceVar, extractResponseSynType schema.Kind, r)]) expr
+            let checker = lambda (simplePats [SynSimplePat.Typed(simplePat sourceVar, extractResponseSynType (Some schema.Name) schema.Kind, r)]) expr
             tupleComplexExpr [typeName; pathList; checker]
      |> Seq.toList
      |> fun exprs -> if exprs.Length > 0 then Some <| SynExpr.ArrayOrList(true, exprs, r) else None       

@@ -60,18 +60,19 @@ let primTypeMatch =
     | PrimTypeKind.String strFormat -> strFormatMatch strFormat
 
 /// matching type kinds in responses to create their syntatic types
-let rec extractResponseSynType =
+let rec extractResponseSynType externalName =
     function
     | Prim primType -> primTypeMatch primType
-    | Array (innerType, _) -> arrayOf (extractResponseSynType innerType)
-    | Option innerType -> optionOf (extractResponseSynType innerType)
+    | Array (innerType, _) -> arrayOf (extractResponseSynType externalName innerType)
+    | Option innerType -> optionOf (extractResponseSynType externalName innerType)
     | BuiltIn builtIn -> synType builtIn
     | Object { Name = Some name } -> synType name
+    | Object _ when (Option.isSome externalName) -> synType (Option.get externalName)
     | Object anonObject ->
         let fields =
             anonObject.Properties
             |> List.map
-            ^ fun (name, typeKind, def) -> AST.ident name, extractResponseSynType typeKind
+            ^ fun (name, typeKind, def) -> AST.ident name, extractResponseSynType (Some name) typeKind
 
         if fields.IsEmpty then objType else anonRecord fields
     | DU du -> synType du.Name
@@ -328,7 +329,7 @@ module rec DefaultsGeneration =
     let private generateDefaultMappingFunFromKind defaultsMap kind sourceDef nameFromSchema =
         let param = "src"
         let recordExpr = generateDefaultMapping defaultsMap kind sourceDef nameFromSchema param
-        lambda (simplePats [SynSimplePat.Typed(simplePat param, extractResponseSynType kind, r)]) recordExpr
+        lambda (simplePats [SynSimplePat.Typed(simplePat param, extractResponseSynType (Some nameFromSchema) kind, r)]) recordExpr
 
     let private generateDefaultMappingFunFromMapping defaultsMap sourceDef (mapping: GeneratedOptionalTypeMapping) =
         let param = "src"

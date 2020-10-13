@@ -218,7 +218,7 @@ let giraffeAst (api: Api) =
                   for method in path.Methods do
                       let responseTypes =
                           [ for response in method.Responses do
-                              extractResponseSynType response.Kind ]
+                              extractResponseSynType None response.Kind ]
                       
                       // multiple non-body input sources should be combined
                       let combinedTypeName = combinedInputTypeNames |> Map.tryFind (method.Method, method.Name)
@@ -227,7 +227,7 @@ let giraffeAst (api: Api) =
                             allSchemas |> List.find (fun x -> x.Name = nm)  
                       let maybeCombinedType =
                           maybeCombinedTypeOpenApi
-                          |> Option.map (fun tp -> tp.Kind |> extractResponseSynType)
+                          |> Option.map (fun tp -> tp.Kind |> extractResponseSynType (Some tp.Name))
                           
                       // ...but there may be only one non-body source for which there's no point in generating "combined" type
                       let maybeSingleNonBodyParameterOpenApi =
@@ -236,7 +236,7 @@ let giraffeAst (api: Api) =
                       let maybeSingleNonBodyParameter =
                           maybeSingleNonBodyParameterOpenApi
                           |> Option.map snd
-                          |> Option.map (fun x -> x.Kind |> extractResponseSynType)
+                          |> Option.map (fun x -> x.Kind |> extractResponseSynType (Some x.Name))
                           
                       // ...and body should be passed as a separate parameter. TODO: Body binding into DU case per content-type
                       let maybeBodyOpenApi =
@@ -245,7 +245,7 @@ let giraffeAst (api: Api) =
                       let maybeBody =
                           maybeBodyOpenApi
                           |> Option.map snd
-                          |> Option.map (fun x -> x.Kind |> extractResponseSynType)
+                          |> Option.map (fun x -> x.Kind |> extractResponseSynType (Some x.Name))
                           
                       let maybePathOpenApi =
                           method.Parameters
@@ -255,7 +255,7 @@ let giraffeAst (api: Api) =
                               |> Seq.filter (fst >> ((=) Path))
                               |> Seq.map snd
                               |> Seq.tryExactlyOne
-                      let maybePath = maybePathOpenApi |> Option.map (fun x -> x.Kind |> extractResponseSynType)
+                      let maybePath = maybePathOpenApi |> Option.map (fun x -> x.Kind |> extractResponseSynType (Some x.Name))
                           
                       let maybeNonBody = maybeCombinedType |> Option.orElse maybeSingleNonBodyParameter
                           
@@ -332,7 +332,7 @@ let giraffeAst (api: Api) =
                                     |> Option.map
                                         (
                                             fun p ->
-                                                let res = typeApp (identExpr "Result") [extractResponseSynType p.Kind; synType CodeGenErrorsDU.errOuterTypeName]
+                                                let res = typeApp (identExpr "Result") [extractResponseSynType (Some p.Name) p.Kind; synType CodeGenErrorsDU.errOuterTypeName]
                                                 let okCall = SynExpr.DotGet(res,r,longIdentWithDots "Ok",r)
                                                 let expr = app okCall (identExpr "pathArgs")
                                                 CodeGenNullChecking.bindNullCheckIntoResult "path" p CodeGenErrorsDU.errOuterPath expr
