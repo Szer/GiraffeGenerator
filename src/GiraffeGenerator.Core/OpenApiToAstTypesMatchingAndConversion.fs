@@ -298,46 +298,55 @@ module rec DefaultsGeneration =
         |> Option.defaultWith (fun _ -> generateDefaultMappingFunFromKind defaultsMap kind def nameFromSchema)
     
     let rec private generateDefaultMapping defaultsMap source def nameFromSchema instanceName =
+        let indented = longIdentExpr instanceName
         match source with
             | TypeKind.Object source ->
-                recordExpr
-                    [
-                        for name, kind, def in source.Properties do
-                            let propPath = instanceName + "." + name
-                            name, generateDefaultMapping defaultsMap kind def name propPath
-                    ]
+                let mutable hasDefaultProps = false
+                let record =
+                    recordExpr
+                        [
+                            for name, kind, def in source.Properties do
+                                let propPath = instanceName + "." + name
+                                let hasDefaults, subMapping = generateDefaultMapping defaultsMap kind def name propPath
+                                hasDefaultProps <- hasDefaultProps || hasDefaults
+                                name, subMapping
+                        ]
+                if hasDefaultProps then
+                    true, record
+                else false, indented
             | TypeKind.Array (item, def) ->
-                let indented = longIdentExpr instanceName
-                if def.IsSome then
-                    let func = generateBestPossibleFunc item defaultsMap def nameFromSchema
-                    indented ^|> app (longIdentExpr "Array.map") func
-                else indented 
+                let hasDefaults, func = generateBestPossibleFunc item defaultsMap def nameFromSchema
+                if hasDefaults then
+                    true, indented ^|> app (longIdentExpr "Array.map") func
+                else false, indented
             | TypeKind.Option v ->
-                let indented = longIdentExpr instanceName
                 if def.IsSome then
-                    indented ^|> Option.defaultValueExpr (defaultToExpr def.Value)
+                    true, indented ^|> Option.defaultValueExpr (defaultToExpr def.Value)
                 else
-                    let func = generateBestPossibleFunc v defaultsMap def nameFromSchema
-                    indented ^|> Option.mapExpr func
+                    let hasDefaults, func = generateBestPossibleFunc v defaultsMap def nameFromSchema
+                    if hasDefaults then
+                        true, indented ^|> Option.mapExpr func
+                    else false, indented
             | _ ->
-                let indented = longIdentExpr instanceName
                 if def.IsSome then
-                    indented ^|> longIdentExpr "Option.ofObj" ^|> Option.defaultValueExpr (defaultToExpr def.Value)
+                    failwith "should be handled by option"
                 else
-                    indented
+                    false, indented
 
     let private generateDefaultMappingFunFromKind defaultsMap kind sourceDef nameFromSchema =
         let param = "src"
-        let recordExpr = generateDefaultMapping defaultsMap kind sourceDef nameFromSchema param
-        lambda (simplePats [SynSimplePat.Typed(simplePat param, extractResponseSynType (Some nameFromSchema) kind, r)]) recordExpr
+        let hasDefaults, recordExpr = generateDefaultMapping defaultsMap kind sourceDef nameFromSchema param
+        hasDefaults, lambda (simplePats [SynSimplePat.Typed(simplePat param, extractResponseSynType (Some nameFromSchema) kind, r)]) recordExpr
 
     let private generateDefaultMappingFunFromMapping defaultsMap sourceDef (mapping: GeneratedOptionalTypeMapping) =
         let param = "src"
-        let recordExpr = generateDefaultMapping defaultsMap mapping.Generated sourceDef mapping.OriginalName param
+        let hasDefaults, recordExpr = generateDefaultMapping defaultsMap mapping.Generated sourceDef mapping.OriginalName param
         let bindWithTypeAndReturn =
             letOrUseComplexDecl (SynPat.Typed(SynPat.Named(SynPat.Wild r, ident "v", false, None, r), synType mapping.OriginalName, r))
                 recordExpr (identExpr "v")
-        lambda (simplePats [SynSimplePat.Typed(simplePat param, synType mapping.GeneratedName, r)]) bindWithTypeAndReturn
+        hasDefaults, lambda (simplePats [SynSimplePat.Typed(simplePat param, synType mapping.GeneratedName, r)]) bindWithTypeAndReturn
         
     let generateDefaultMappingFunFromSchema defaultsMap mapping (schema: TypeSchema) =
-        generateDefaultMappingFunFromMapping defaultsMap schema.DefaultValue mapping
+        let hasDefault, fn = generateDefaultMappingFunFromMapping defaultsMap schema.DefaultValue mapping
+        if hasDefault then fn
+        else _id
