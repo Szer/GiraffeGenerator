@@ -95,8 +95,39 @@ let getCombinedRecordPropertyNamesFrom parameters =
             CombinedRecordPropertyName = combinedPropertyName
             OriginalLocation = originalLocation
             OriginalName = originalName
-        }) 
-    
+        })
+let generateCombinedRecordTypeDefnFor parameters name =
+    let mapping =
+        getCombinedRecordPropertyNamesFrom parameters
+        |> Seq.map ^ fun mapping -> mapping.OriginalLocation, (mapping.OriginalName, mapping.CombinedRecordPropertyName)
+        |> Seq.groupBy fst
+        |> Seq.map (fun (k, v) -> k, v |> Seq.map snd |> Map)
+        |> Map
+    { // generate combined input record from every source of input 
+        Name = name
+        DefaultValue = None
+        Docs = None
+        Kind =
+            {
+                Name = Some name
+                Docs = None
+                Properties =
+                    parameters
+                    |> Map.toSeq
+                    |> Seq.filter (fst >> isNotBody)
+                    |> Seq.collect
+                        (
+                            fun (location, schema) ->
+                                let mapping = mapping |> Map.find location
+                                match schema.Kind with
+                                | Object o ->
+                                    [for name, kind, def in o.Properties do
+                                        mapping |> Map.find name, kind, def]
+                                | _ -> [mapping |> Map.find (getOwnName schema.Kind ^ fun () -> schema.Name), schema.Kind, schema.DefaultValue]
+                        )
+                    |> Seq.toList
+            } |> TypeKind.Object
+    } 
     
 let hasMultipleNonBodyParameters parameters =
     parameters
@@ -160,38 +191,8 @@ let giraffeAst (api: Api) =
                         for KeyValue(_, schema) in method.Parameters.Value do
                             schema
                         if hasMultipleNonBodyParameters method.Parameters.Value then
-                            let mapping =
-                                getCombinedRecordPropertyNamesFrom method.Parameters.Value
-                                |> Seq.map ^ fun mapping -> mapping.OriginalLocation, (mapping.OriginalName, mapping.CombinedRecordPropertyName)
-                                |> Seq.groupBy fst
-                                |> Seq.map (fun (k, v) -> k, v |> Seq.map snd |> Map)
-                                |> Map
                             let name = combinedInputTypeNames |> Map.find (method.Method, method.Name)
-                            { // generate combined input record from every source of input 
-                                Name = name
-                                DefaultValue = None
-                                Docs = None
-                                Kind =
-                                    {
-                                        Name = Some name
-                                        Docs = None
-                                        Properties =
-                                            method.Parameters.Value
-                                            |> Map.toSeq
-                                            |> Seq.filter (fst >> isNotBody)
-                                            |> Seq.collect
-                                                (
-                                                    fun (location, schema) ->
-                                                        let mapping = mapping |> Map.find location
-                                                        match schema.Kind with
-                                                        | Object o ->
-                                                            [for name, kind, def in o.Properties do
-                                                                mapping |> Map.find name, kind, def]
-                                                        | _ -> [mapping |> Map.find (getOwnName schema.Kind ^ fun () -> schema.Name), schema.Kind, schema.DefaultValue]
-                                                )
-                                            |> Seq.toList
-                                    } |> TypeKind.Object
-                            } ]
+                            generateCombinedRecordTypeDefnFor method.Parameters.Value name]
 
           if not allSchemas.IsEmpty then types (extractRecords allSchemas)
 
