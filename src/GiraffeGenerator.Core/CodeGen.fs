@@ -92,28 +92,15 @@ let giraffeAst (api: Api) =
           openDecl "System.Threading.Tasks"
           openDecl "Microsoft.AspNetCore.Http"
           
-          [ CodeGenErrorsDU.errInnerTypeName, CodeGenErrorsDU.errInnerType
-            CodeGenErrorsDU.errOuterTypeName, CodeGenErrorsDU.errOuterType ]
-            |> List.map (fun (name, kind) -> { DefaultValue = None; Name = name; Kind = kind; Docs = None })
+          CodeGenErrorsDU.typeSchemas
             |> extractRecords
             |> types
-          CodeGenErrorsDU.innerErrToStringDecl
-          CodeGenErrorsDU.outerErrToStringDecl
+            
+          // generate helper functions for error handling
+          yield! CodeGenErrorsDU.generateHelperFunctions()
 
           // generate helper functions for null checking
           yield! CodeGenNullChecking.generateNullCheckingHelpers()
-
-          let tryExtractErrorName = "tryExtractError"
-          let tryExtractError =
-              let value = "value"
-              letDecl false tryExtractErrorName [value] None
-              ^ matchExpr value
-                    [
-                        clause (SynPat.LongIdent(longIdentWithDots "Ok", None, None, [SynPat.Wild r] |> Pats, None, r)) (identExpr "None")
-                        clause (SynPat.LongIdent(longIdentWithDots "Error", None, None, [SynPat.Named(SynPat.Wild(r), ident "err", false, None, r)] |> Pats, None, r))
-                            ^ app (identExpr "Some") (identExpr "err") 
-                    ]
-          tryExtractError
 
           let parametersLocationNameMapping =
               seq {
@@ -455,7 +442,7 @@ let giraffeAst (api: Api) =
                                                 nonCombinedBodyArgs
                                                 |> Seq.append nonCombinedNonBodyArgs
                                                 |> Seq.map snd
-                                                |> Seq.map ^ fun result -> app (identExpr tryExtractErrorName) (identExpr result)
+                                                |> Seq.map ^ fun result -> app (identExpr CodeGenErrorsDU.tryExtractErrorName) (identExpr result)
                                                 |> Seq.toList
                                             if allRawBindings.Length = 1 then
                                                 continuation

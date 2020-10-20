@@ -9,7 +9,7 @@ let errInnerGiraffeBinding = "GiraffeBindingError"
 let errInnerFormatterBindingExn = "FormatterBindingException"
 let errInnerModelBindingUnexpectedNull = "ModelBindingUnexpectedNull"
 let errInnerCombined = "CombinedArgumentErrors"
-let errInnerType =
+let private errInnerType =
   DU {
       Name = errInnerTypeName
       Docs = Some { Summary = Some ["Represents some concrete error somewhere in arguments"]; Example = None; Remarks = None }
@@ -51,7 +51,7 @@ let errOuterBody = "BodyBindingError"
 let errOuterQuery = "QueryBindingError"
 let errOuterPath = "PathBindingError"
 let errOuterCombined = "CombinedArgumentLocationError"
-let errOuterType =
+let private errOuterType =
   DU {
       Name = errOuterTypeName
       Docs = Some { Summary = Some ["Represents error in arguments of some location"]; Example = None; Remarks = None; }
@@ -81,12 +81,12 @@ let errOuterType =
   }
 
 let innerErrToStringName = "argErrorToString"
-let levelParam = "level"
-let valueParam = "value"
-let sepVar = "sep"
-let err = "err"
-let nextLevel = app (appI (identExpr "op_Addition") (identExpr levelParam)) (SynConst.Int32 1 |> constExpr)
-let letSep =
+let private levelParam = "level"
+let private valueParam = "value"
+let private sepVar = "sep"
+let private err = "err"
+let private nextLevel = app (appI (identExpr "op_Addition") (identExpr levelParam)) (SynConst.Int32 1 |> constExpr)
+let private letSep =
   letExpr
       sepVar
       []
@@ -102,7 +102,7 @@ let letSep =
               )
       )
 
-let innerErrToStringDecl =
+let private innerErrToStringDecl =
   letDecl true innerErrToStringName [levelParam; valueParam] None
   ^ letSep
   ^ simpleValueMatching valueParam
@@ -127,11 +127,11 @@ let innerErrToStringDecl =
             ]
     ]
 
-let callInnerWithFormat format var =
+let private callInnerWithFormat format var =
   sprintfExpr format [ identExpr sepVar; paren ( app (app (identExpr innerErrToStringName) (paren nextLevel)) (identExpr var)) ]
 
 let outerErrToStringName = "argLocationErrorToString"
-let outerErrToStringDecl =
+let private outerErrToStringDecl =
   letDecl true outerErrToStringName [levelParam; valueParam] None
   ^ letSep
   ^ simpleValueMatching valueParam
@@ -162,3 +162,25 @@ let outerErrToStringDecl =
              ]
     ]
 
+let tryExtractErrorName = "tryExtractError"
+let private tryExtractErrorDecl =
+    let value = "value"
+    letDecl false tryExtractErrorName [value] None
+    ^ matchExpr value
+        [
+            clause (SynPat.LongIdent(longIdentWithDots "Ok", None, None, [SynPat.Wild r] |> Pats, None, r)) (identExpr "None")
+            clause (SynPat.LongIdent(longIdentWithDots "Error", None, None, [SynPat.Named(SynPat.Wild(r), ident "err", false, None, r)] |> Pats, None, r))
+                ^ app (identExpr "Some") (identExpr "err") 
+        ]
+
+let typeSchemas =
+    [ errInnerTypeName, errInnerType
+      errOuterTypeName, errOuterType ]
+    |> List.map (fun (name, kind) -> { DefaultValue = None; Name = name; Kind = kind; Docs = None })
+
+let generateHelperFunctions () =
+    [
+        innerErrToStringDecl
+        outerErrToStringDecl
+        tryExtractErrorDecl
+    ]
