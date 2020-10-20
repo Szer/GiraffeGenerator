@@ -156,18 +156,6 @@ let giraffeAst (api: Api) =
           // generate helper functions for null checking
           yield! CodeGenNullChecking.generateNullCheckingHelpers()
 
-          let combinedInputTypeNames =
-              api.Paths
-              |> Seq.collect (fun x -> x.Methods)
-              |> Seq.choose
-                  (
-                      fun m ->
-                          m.Parameters
-                          |> Option.filter hasMultipleNonBodyParameters
-                          |> Option.map (fun _ -> (m.Method, m.Name), requestCommonInputTypeName m)
-                  )
-              |> Map
-
           let tmpBindingSchemas =
               [ for path in api.Paths do
                   for method in path.Methods do
@@ -191,7 +179,7 @@ let giraffeAst (api: Api) =
                         for KeyValue(_, schema) in method.Parameters.Value do
                             schema
                         if hasMultipleNonBodyParameters method.Parameters.Value then
-                            let name = combinedInputTypeNames |> Map.find (method.Method, method.Name)
+                            let name = requestCommonInputTypeName method
                             generateCombinedRecordTypeDefnFor method.Parameters.Value name]
 
           if not allSchemas.IsEmpty then types (extractRecords allSchemas)
@@ -205,10 +193,9 @@ let giraffeAst (api: Api) =
                               extractResponseSynType None response.Kind ]
                       
                       // multiple non-body input sources should be combined
-                      let combinedTypeName = combinedInputTypeNames |> Map.tryFind (method.Method, method.Name)
+                      let combinedTypeName = requestCommonInputTypeName method
                       let maybeCombinedTypeOpenApi =
-                          combinedTypeName |> Option.map ^ fun nm ->
-                            allSchemas |> List.find (fun x -> x.Name = nm)  
+                          allSchemas |> List.tryFind (fun x -> x.Name = combinedTypeName)  
                       let maybeCombinedType =
                           maybeCombinedTypeOpenApi
                           |> Option.map (fun tp -> tp.Kind |> extractResponseSynType (Some tp.Name))
