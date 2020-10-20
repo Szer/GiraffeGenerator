@@ -57,6 +57,7 @@ let requestCommonInputTypeName (method: PathMethodCall) = method.Name + method.M
 let sourceSorting (source: PayloadLocation) = source = Path, source = Query, source = Body(Json), source = Body(Form)
 let isBody = function | Body _ -> true | _ -> false
 let isNotBody = isBody >> not
+let isNotPath = (<>) Path
 
 let extractParameterObjectNamesWithLocations (parameterLocation, (parameterSchema: TypeSchema)) =
     let names =
@@ -127,7 +128,7 @@ let generateCombinedRecordTypeDefnFor parameters name =
                         )
                     |> Seq.toList
             } |> TypeKind.Object
-    } 
+    }
     
 let hasMultipleNonBodyParameters parameters =
     parameters
@@ -135,6 +136,26 @@ let hasMultipleNonBodyParameters parameters =
     |> Seq.map fst
     |> Seq.filter isNotBody
     |> Seq.length > 1
+
+let hasNullableValuesPossible api =
+    seq {
+        for path in api.Paths do
+            for method in path.Methods do
+                if method.Parameters.IsSome then
+                    for KeyValue(loc, schema) in method.Parameters.Value do
+                        if isNotPath loc then
+                            CodeGenNullChecking.schemaHasNullableValues schema
+    } |> Seq.contains true
+
+let hasErrorsPossible api =
+    seq {
+        for path in api.Paths do
+            for method in path.Methods do
+                if method.Parameters.IsSome then
+                    method.Parameters.Value
+                    |> Map.toSeq
+                    |> Seq.exists (fst >> isNotPath)
+    } |> Seq.contains true
 
 /// Creating whole module AST for Giraffe webapp
 let giraffeAst (api: Api) =
@@ -159,9 +180,13 @@ let giraffeAst (api: Api) =
               |> Seq.collect (fun v -> [ SourceType v.OriginalName, v; GeneratedType v.GeneratedName, v ])
               |> Map
 
+          let nullsPossible = hasNullableValuesPossible api
+          let errorsPossible = nullsPossible || hasErrorsPossible api
+          
           let allSchemas =
               [
-                yield! CodeGenErrorsDU.typeSchemas
+                if errorsPossible then
+                    yield! CodeGenErrorsDU.typeSchemas
                 yield! api.Schemas
                 yield! tmpBindingSchemas |> Seq.map ^ fun v -> { Kind = v.Generated; Name = v.GeneratedName; Docs = None; DefaultValue = None }
                 for path in api.Paths do
@@ -178,10 +203,12 @@ let giraffeAst (api: Api) =
                  types (extractRecords allSchemas)
 
                  // generate helper functions for error handling
-                 yield! CodeGenErrorsDU.generateHelperFunctions()
+                 if errorsPossible then
+                    yield! CodeGenErrorsDU.generateHelperFunctions()
 
                  // generate helper functions for null checking
-                 yield! CodeGenNullChecking.generateNullCheckingHelpers()
+                 if nullsPossible then
+                    yield! CodeGenNullChecking.generateNullCheckingHelpers()
               ]
 
           abstractClassDecl

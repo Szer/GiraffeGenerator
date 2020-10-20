@@ -139,6 +139,10 @@ let rec private enumeratePaths prevPath kind =
           | _ -> prevPath
     }
 
+let schemaHasNullableValues (schema: TypeSchema) =
+    enumeratePaths [] schema.Kind
+    |> Seq.exists (List.contains NullableValue)
+
 /// Generate checks for unexpected nulls
 let private generateNullCheckersArray sourceVar (schema: TypeSchema) =
     let rec analyze expr path mods (l: PropertyPathSegment list) =
