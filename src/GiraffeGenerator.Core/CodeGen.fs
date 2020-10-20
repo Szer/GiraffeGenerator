@@ -55,7 +55,8 @@ let createRoute (path: ParsedPath) =
 
 let requestCommonInputTypeName (method: PathMethodCall) = method.Name + method.Method + "Input"
 let sourceSorting (source: PayloadLocation) = source = Path, source = Query, source = Body(Json), source = Body(Form)
-let isNotBody = function | Body _ -> false | _ -> true
+let isBody = function | Body _ -> true | _ -> false
+let isNotBody = isBody >> not
 
 /// Creating whole module AST for Giraffe webapp
 let giraffeAst (api: Api) =
@@ -158,7 +159,7 @@ let giraffeAst (api: Api) =
                   for method in path.Methods do
                       if method.Parameters.IsSome then
                         for KeyValue(source, schema) in method.Parameters.Value do
-                            if source = Query || not (isNotBody source) then // non-query and non-body bindings don't support default values
+                            if source = Query || isBody source then // non-query and non-body bindings don't support default values
                                 let generatedTypes = generateOptionalType schema.Kind schema.DefaultValue (Some schema.Name)
                                 yield! generatedTypes ]
           let tmpBindingSchemasMap =
@@ -242,7 +243,7 @@ let giraffeAst (api: Api) =
                       // ...and body should be passed as a separate parameter. TODO: Body binding into DU case per content-type
                       let maybeBodyOpenApi =
                           method.Parameters
-                          |> Option.bind (fun p -> p |> Map.toSeq |> Seq.filter (fst >> isNotBody >> not) |> Seq.tryExactlyOne)
+                          |> Option.bind (fun p -> p |> Map.toSeq |> Seq.filter (fst >> isBody) |> Seq.tryExactlyOne)
                       let maybeBody =
                           maybeBodyOpenApi
                           |> Option.map snd
