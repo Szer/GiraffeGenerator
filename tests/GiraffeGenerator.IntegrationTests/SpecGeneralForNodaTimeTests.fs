@@ -128,7 +128,7 @@ type SpecGeneralForNodaTimeTests() =
 }
 """
         use jsonContent = new StringContent(jsonInputString, Encoding.UTF8, "text/json")
-        let query = // note the difference in duration formats
+        let query = // note the difference in duration formats. Also, default zoned date time format for query is still unknown
             [
                 "dateParam", "1995-10-09"
                 "timeParam", "01:30:00"
@@ -143,6 +143,54 @@ type SpecGeneralForNodaTimeTests() =
             |> String.concat "&"
         let url = sprintf "/id?%s" query
         let! response = client.PostAsync(url, jsonContent)
+        let! text = response.Content.ReadAsStringAsync()
+        let deserialized = JsonConvert.DeserializeObject<_>(text, jsonSettings)
+        Assert.Equal(expected, deserialized)
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode)
+    }
+
+    [<Fact>]
+    let ``Unspecified input returns expected defaults``() = task {
+        let zonedDateTime = ZonedDateTime(Instant.FromUtc(1995, 10, 09, 00, 30), DateTimeZoneProviders.Tzdb.[ "Europe/London" ])
+        let expected: Specforgeneralnodatimetesting.dataSetListOutput =
+            {
+                dateParamFromQuery = None
+                timeParamFromQuery = None
+                offsetParamFromQuery = None
+                durationParamFromQuery = None
+                instantParamFromQuery = None
+                localDateTimeParamFromQuery = None
+                offsetDateTimeParamFromQuery = None
+                zonedDateTime = zonedDateTime
+                forDefaultsTesting =
+                    {
+                        dateParamFromBody = LocalDate(2020,10,21)
+                        timeParamFromBody = LocalTime(19,58,12)
+                        offsetParamFromBody = Offset.FromHoursAndMinutes(-14, -55) + Offset.FromSeconds -1
+                        timeZoneParamFromBody = DateTimeZoneProviders.Tzdb.[ "Europe/Moscow" ]
+                        periodParamFromBody =
+                            let v = PeriodBuilder()
+                            v.Days <- 13
+                            v.Hours <- 49L
+                            v.Minutes <- 156L
+                            v.Build()
+                        durationParamFromBody = Duration.FromHours(-364) + Duration.FromMinutes -36L
+                        instantParamFromBody = Instant.FromUtc(2020, 10, 21, 16, 59, 12) + Duration.FromTicks 1L
+                        localDateTimeParamFromBody = LocalDateTime(2020, 10, 21, 19, 59, 12) + Period.FromTicks 1L
+                        offsetDateTimeParamFromBody = OffsetDateTime(LocalDateTime(2020, 10, 21, 19, 59, 12) + Period.FromTicks 1L, Offset.FromHours 3)
+                    }
+            }
+        // usage of codegen requires custom converter for options and noda time types
+        // as we don't know which json framework user is going to use.
+        // But we want tests to be nice and to respect the spec, so here is OptionConverter.fs (by @Szer) and NodaTime.Serialization.JsonNet
+        // Also, json by hand for the success story this test is checking to ensure that spec is respected
+        let jsonInputString = """{
+    "forDefaultsTesting": {},
+    "zonedDateTime": "1995-10-09T01:30:00.000+01 Europe/London"
+}
+"""
+        use jsonContent = new StringContent(jsonInputString, Encoding.UTF8, "text/json")
+        let! response = client.PostAsync("/id", jsonContent)
         let! text = response.Content.ReadAsStringAsync()
         let deserialized = JsonConvert.DeserializeObject<_>(text, jsonSettings)
         Assert.Equal(expected, deserialized)
