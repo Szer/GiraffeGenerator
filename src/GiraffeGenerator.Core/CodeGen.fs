@@ -22,7 +22,7 @@ let private createRouteHandler path method =
     let serviceCall = service method.Name
     let hasPathParameters =
         method.Parameters
-        |> Option.map (Map.toSeq >> Seq.map fst >> Seq.map ((=) Path) >> Seq.reduce (||))
+        |> Option.map (Map.containsKey Path)
         |> Option.defaultValue false
     if hasPathParameters then verb >=> routeBind path serviceCall else verb >=> route path >=> serviceCall
 
