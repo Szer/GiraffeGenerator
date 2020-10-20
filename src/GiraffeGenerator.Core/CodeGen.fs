@@ -58,6 +58,13 @@ let sourceSorting (source: PayloadLocation) = source = Path, source = Query, sou
 let isBody = function | Body _ -> true | _ -> false
 let isNotBody = isBody >> not
 
+let extractParameterObjectNamesWithLocations (parameterLocation, (parameterSchema: TypeSchema)) =
+    let names =
+        match parameterSchema.Kind with
+        | TypeKind.Object obj -> obj.Properties |> Seq.map (fun (nm,_,_) -> nm)
+        | _ -> seq { parameterSchema.Name }
+    names |> Seq.map (fun name -> name, parameterLocation)
+
 /// Creating whole module AST for Giraffe webapp
 let giraffeAst (api: Api) =
     moduleDecl
@@ -100,15 +107,7 @@ let giraffeAst (api: Api) =
                                 method.Parameters.Value
                                 |> Map.toSeq
                                 |> Seq.filter (fst >> isNotBody)
-                                |> Seq.collect
-                                     (
-                                         fun (parameterLocation, parameterSchema) ->
-                                             let nameNType =
-                                                 match parameterSchema.Kind with
-                                                 | TypeKind.Object obj -> obj.Properties |> Seq.map (fun (nm,_,_) -> nm)
-                                                 | _ -> seq { parameterSchema.Name }
-                                             nameNType |> Seq.map (fun t -> t, parameterLocation)
-                                     )
+                                |> Seq.collect extractParameterObjectNamesWithLocations
                                  |> Seq.groupBy fst
                                  |> Seq.map (fun (parameterName, group) -> parameterName, group |> Seq.map (fun (_, parameterLocation) -> parameterLocation) |> Seq.toArray)
                                  |> Seq.collect
