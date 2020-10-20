@@ -75,6 +75,13 @@ let getUniqueParameterNameForLocationOrFail ((parameterName, parameterLocations)
             failwithf "Unable to generate distinct input property name: property \"%s\" is duplicated by location" parameterName
         parameterLocations |> Seq.map (fun loc -> parameterName + "From" + (loc.ToString()), (loc, parameterName))
 
+let hasMultipleNonBodyParameters parameters =
+    parameters
+    |> Map.toSeq
+    |> Seq.map fst
+    |> Seq.filter isNotBody
+    |> Seq.length > 1
+
 /// Creating whole module AST for Giraffe webapp
 let giraffeAst (api: Api) =
     moduleDecl
@@ -135,15 +142,7 @@ let giraffeAst (api: Api) =
                   (
                       fun m ->
                           m.Parameters
-                          |> Option.filter
-                              (
-                                  fun p ->
-                                      p
-                                      |> Map.toSeq
-                                      |> Seq.map fst
-                                      |> Seq.filter isNotBody
-                                      |> Seq.length > 1
-                              )
+                          |> Option.filter hasMultipleNonBodyParameters
                           |> Option.map (fun _ -> (m.Method, m.Name), requestCommonInputTypeName m)
                   )
               |> Map
@@ -170,7 +169,7 @@ let giraffeAst (api: Api) =
                       if method.Parameters.IsSome then
                         for KeyValue(_, schema) in method.Parameters.Value do
                             schema
-                        if method.Parameters.Value |> Map.toSeq |> Seq.map fst |> Seq.filter isNotBody |> Seq.length > 1 then
+                        if hasMultipleNonBodyParameters method.Parameters.Value then
                             let mapping =
                                 parametersLocationNameMapping
                                 |> Map.find (method.Method, method.Name)
