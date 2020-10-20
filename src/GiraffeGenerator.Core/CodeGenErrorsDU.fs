@@ -87,7 +87,7 @@ let sepVar = "sep"
 let err = "err"
 let nextLevel = app (appI (identExpr "op_Addition") (identExpr levelParam)) (SynConst.Int32 1 |> constExpr)
 let letSep =
-  letOrUseDecl
+  letExpr
       sepVar
       []
       (

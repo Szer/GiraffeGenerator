@@ -34,9 +34,9 @@ let generateNullCheckingHelpers () =
             let value = "value"
             let mapCheckers = "mapCheckers"
             letDecl false checkForUnexpectedNullsName [checkers; errType; value] None
-            ^ letOrUseComplexParametersDecl mapCheckers (Pats [SynPat.Paren(tuplePat ["typeName"; "path"; "accessor"], r)])
+            ^ letExprComplexParameters mapCheckers (Pats [SynPat.Paren(tuplePat ["typeName"; "path"; "accessor"], r)])
                 (
-                     letOrUseComplexParametersDecl "v" (Pats [SynPat.Wild(r)])
+                     letExprComplexParameters "v" (Pats [SynPat.Wild(r)])
                         (
                             app (identExpr CodeGenErrorsDU.errInnerModelBindingUnexpectedNull)
                                 (

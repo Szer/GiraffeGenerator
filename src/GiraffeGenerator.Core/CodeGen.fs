@@ -325,7 +325,7 @@ let giraffeAst (api: Api) =
                                             ^|> Result.mapExpr (DefaultsGeneration.generateDefaultMappingFunFromSchema tmpBindingSchemasMap v querySchema)
                                         |> Option.defaultValue bindRaw
                                         |> CodeGenNullChecking.bindNullCheckIntoResult "query" querySchema CodeGenErrorsDU.errOuterQuery
-                                    |> Option.map ^ letOrUseDecl queryBinding []
+                                    |> Option.map ^ letExpr queryBinding []
                                 
                                 let pathBinding = "pathArgs"
                                 let maybeBindPath =
@@ -339,7 +339,7 @@ let giraffeAst (api: Api) =
                                                 let expr = app okCall (identExpr "pathArgs")
                                                 CodeGenNullChecking.bindNullCheckIntoResult "path" p CodeGenErrorsDU.errOuterPath expr
                                         )
-                                    |> Option.map ^ letOrUseDecl pathBinding []
+                                    |> Option.map ^ letExpr pathBinding []
 
                                 let combinedInputs = "combinedArgs"
                                 let rec generateBinds binded leftToBind generateFinal =
@@ -354,7 +354,7 @@ let giraffeAst (api: Api) =
                                                 ^ lambda ([simplePat binded] |> simplePats) ^ generateFinal()
                                 let generateInputsCombination synt (schema: TypeSchema) bindings =
                                     let finalGenerator () =
-                                        letOrUseComplexDecl
+                                        letExprComplex
                                             (SynPat.Typed(SynPat.Named(SynPat.Wild r, ident "v", false, None, r), synt, r))
                                             (
                                                 let bindings = Map bindings
@@ -390,7 +390,7 @@ let giraffeAst (api: Api) =
                                                 |> fun x -> if x.Length > 1 then Some x else None
                                                 |> Option.map ^ generateInputsCombination synt schema
                                         )
-                                    |> Option.map ^ letOrUseDecl combinedInputs []
+                                    |> Option.map ^ letExpr combinedInputs []
                                 
                                 let bodyBinding = "bodyArgs"
                                 let maybeBodyBindingType =
@@ -452,7 +452,7 @@ let giraffeAst (api: Api) =
                                     |> Option.map ^ fun (nonBody, body) ->
                                         generateBinds nonBody [body] ^ fun () -> tupleExpr [nonBody; body]
                                     |> Option.orElse (body |> Option.orElse nonBody |> Option.map identExpr)
-                                    |> Option.map ^ letOrUseDecl finalArgsBinding []
+                                    |> Option.map ^ letExpr finalArgsBinding []
                                     |> Option.map ^ fun f continuation ->
                                         f
                                         ^
@@ -465,14 +465,14 @@ let giraffeAst (api: Api) =
                                             if allRawBindings.Length = 1 then
                                                 continuation
                                             else
-                                                letOrUseDecl finalArgsBinding []
+                                                letExpr finalArgsBinding []
                                                     (
                                                         simpleValueMatching finalArgsBinding
                                                             [
                                                                 "Ok", "v", app (identExpr "Ok") (identExpr "v")
                                                                 "Error", "e",
                                                                     let errExpr =
-                                                                        letOrUseDecl "errs" []
+                                                                        letExpr "errs" []
                                                                             (
                                                                                 SynExpr.ArrayOrList(false, allRawBindings, r)
                                                                                 ^|> seqChooseId
@@ -568,8 +568,8 @@ let giraffeAst (api: Api) =
                               abstractMemberDfn xmlEmpty errorHandlerName (tuple [synType CodeGenErrorsDU.errOuterTypeName; synType "HttpContext"] ^-> taskOf [ returnType ])
                               methodImplDefn errorHandlerName ["t"]
                                 (
-                                    letOrUseComplexDecl (tuplePat ["err"; "http"]) (identExpr "t")
-                                    ^ letOrUseDecl "err" [] (app (app (identExpr CodeGenErrorsDU.outerErrToStringName) (constExpr <| SynConst.Int32 0)) (identExpr "err"))
+                                    letExprComplex (tuplePat ["err"; "http"]) (identExpr "t")
+                                    ^ letExpr "err" [] (app (app (identExpr CodeGenErrorsDU.outerErrToStringName) (constExpr <| SynConst.Int32 0)) (identExpr "err"))
                                     ^ app (typeApp (longIdentExpr "Task.FromException") [returnType]) (paren <| app (identExpr "exn") ("err" |> identExpr))
                                 )
                           // abstract {method.Name}Output: {returnType} -> HttpHandler

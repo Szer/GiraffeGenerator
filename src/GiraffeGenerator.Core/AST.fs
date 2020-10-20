@@ -216,7 +216,7 @@ let getServiceCall =
 
 /// Let expression with continuation for calling:
 /// let {binding} = {body} in {next}
-let letOrUseComplexDecl binding body next =
+let letExprComplex binding body next =
     SynExpr.LetOrUse
         (false,
          false,
@@ -235,15 +235,15 @@ let letOrUseComplexDecl binding body next =
               DebugPointAtBinding(r)) ],
          next,
          r)
-let letOrUseComplexParametersDecl name parameters body next =
-    letOrUseComplexDecl
+let letExprComplexParameters name parameters body next =
+    letExprComplex
         (SynPat.LongIdent(longIdentWithDots name, None, None, parameters, None, r))
         body
         next
 /// Let expression with continuation for calling:
 /// let {name} {parameters} = {body} in {next}
-let letOrUseDecl name parameters body next =
-    letOrUseComplexParametersDecl
+let letExpr name parameters body next =
+    letExprComplexParameters
         name
         (parameters |> List.map (fun p -> SynPat.Named(SynPat.Wild(r), ident p, false, None, r)) |> Pats)
         body
@@ -252,7 +252,7 @@ let letOrUseDecl name parameters body next =
 /// Let expression with continuation for calling:
 /// let service = ctx.GetService<Service>() in {NEXT}
 let letGetServiceDecl next =
-    letOrUseDecl "service" [] getServiceCall next
+    letExpr "service" [] getServiceCall next
 
 /// If-Then-Else expression
 /// if {cond} then {ifTrue} else {ifFalse}

@@ -342,7 +342,7 @@ module rec DefaultsGeneration =
         let param = "src"
         let hasDefaults, recordExpr = generateDefaultMapping defaultsMap mapping.Generated sourceDef mapping.OriginalName param
         let bindWithTypeAndReturn =
-            letOrUseComplexDecl (SynPat.Typed(SynPat.Named(SynPat.Wild r, ident "v", false, None, r), synType mapping.OriginalName, r))
+            letExprComplex (SynPat.Typed(SynPat.Named(SynPat.Wild r, ident "v", false, None, r), synType mapping.OriginalName, r))
                 recordExpr (identExpr "v")
         hasDefaults, lambda (simplePats [SynSimplePat.Typed(simplePat param, synType mapping.GeneratedName, r)]) bindWithTypeAndReturn
         
