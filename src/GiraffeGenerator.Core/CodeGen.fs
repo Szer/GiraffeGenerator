@@ -101,30 +101,30 @@ let giraffeAst (api: Api) =
                                 |> Seq.filter (fst >> isNotBody)
                                 |> Seq.collect
                                      (
-                                         fun (key, value) ->
+                                         fun (parameterLocation, parameterSchema) ->
                                              let nameNType =
-                                                 match value.Kind with
+                                                 match parameterSchema.Kind with
                                                  | TypeKind.Object obj -> obj.Properties |> Seq.map (fun (nm,_,_) -> nm)
-                                                 | _ -> seq { value.Name }
-                                             nameNType |> Seq.map (fun t -> t, key)
+                                                 | _ -> seq { parameterSchema.Name }
+                                             nameNType |> Seq.map (fun t -> t, parameterLocation)
                                      )
                                  |> Seq.groupBy fst
-                                 |> Seq.map (fun (name, values) -> name, values |> Seq.map (fun (_, v) -> v) |> Seq.toArray)
+                                 |> Seq.map (fun (parameterName, group) -> parameterName, group |> Seq.map (fun (_, parameterLocation) -> parameterLocation) |> Seq.toArray)
                                  |> Seq.collect
                                      (
-                                         fun (name, locations) ->
-                                             if locations.Length = 1 then
-                                                 seq { name, (locations.[0], name) }
+                                         fun (parameterName, parameterLocations) ->
+                                             if parameterLocations.Length = 1 then
+                                                 seq { parameterName, (parameterLocations.[0], parameterName) }
                                              else
                                                  let unnameableCount =
-                                                     locations
+                                                     parameterLocations
                                                      |> Seq.countBy id
                                                      |> Seq.map snd
                                                      |> Seq.filter ((<>) 1)
                                                      |> Seq.length
                                                  if unnameableCount > 0 then
-                                                     failwithf "Unable to generate distinct input property name: property \"%s\" is duplicated by location" name
-                                                 locations |> Seq.map (fun loc -> name + "From" + (loc.ToString()), (loc, name))
+                                                     failwithf "Unable to generate distinct input property name: property \"%s\" is duplicated by location" parameterName
+                                                 parameterLocations |> Seq.map (fun loc -> parameterName + "From" + (loc.ToString()), (loc, parameterName))
                                      )
                                  |> Seq.groupBy fst
                                  |> Seq.map (fun (l, v) -> l, v |> Seq.map snd |> Seq.exactlyOne)
