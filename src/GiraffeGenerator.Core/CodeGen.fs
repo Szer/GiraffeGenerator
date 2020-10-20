@@ -65,6 +65,16 @@ let extractParameterObjectNamesWithLocations (parameterLocation, (parameterSchem
         | _ -> seq { parameterSchema.Name }
     names |> Seq.map (fun name -> name, parameterLocation)
 
+let getUniqueParameterNameForLocationOrFail ((parameterName, parameterLocations): string * (PayloadLocation[])) =
+    if parameterLocations.Length = 1 then
+        seq { parameterName, (parameterLocations.[0], parameterName) }
+    else
+        let hasUnnameable =
+            parameterLocations.Length <> (Set parameterLocations).Count
+        if hasUnnameable then
+            failwithf "Unable to generate distinct input property name: property \"%s\" is duplicated by location" parameterName
+        parameterLocations |> Seq.map (fun loc -> parameterName + "From" + (loc.ToString()), (loc, parameterName))
+
 /// Creating whole module AST for Giraffe webapp
 let giraffeAst (api: Api) =
     moduleDecl
@@ -110,22 +120,7 @@ let giraffeAst (api: Api) =
                                   |> Seq.collect extractParameterObjectNamesWithLocations
                                   |> Seq.groupBy fst
                                   |> Seq.map (fun (parameterName, group) -> parameterName, group |> Seq.map (fun (_, parameterLocation) -> parameterLocation) |> Seq.toArray)
-                                  |> Seq.collect
-                                      (
-                                          fun (parameterName, parameterLocations) ->
-                                              if parameterLocations.Length = 1 then
-                                                  seq { parameterName, (parameterLocations.[0], parameterName) }
-                                              else
-                                                  let unnameableCount =
-                                                      parameterLocations
-                                                      |> Seq.countBy id
-                                                      |> Seq.map snd
-                                                      |> Seq.filter ((<>) 1)
-                                                      |> Seq.length
-                                                  if unnameableCount > 0 then
-                                                      failwithf "Unable to generate distinct input property name: property \"%s\" is duplicated by location" parameterName
-                                                  parameterLocations |> Seq.map (fun loc -> parameterName + "From" + (loc.ToString()), (loc, parameterName))
-                                      )
+                                  |> Seq.collect getUniqueParameterNameForLocationOrFail
                                   |> Seq.groupBy fst
                                   |> Seq.map (fun (l, v) -> l, v |> Seq.map snd |> Seq.exactlyOne)
                                   |> Map
