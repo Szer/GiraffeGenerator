@@ -108,38 +108,39 @@ module private Modifiers =
             let expr = expr ^|> f
             mapExprToSeqOfB t expr
 
+let rec private enumeratePaths prevPath kind =
+    seq {
+        match kind with
+        | TypeKind.Object o ->
+            yield!
+                o.Properties
+                |> Seq.collect ^ fun (name, kind, _) ->
+                    let newPath = [yield! prevPath; Property name]
+                    enumeratePaths newPath kind
+          | TypeKind.Array (kind, _) ->
+              for l in enumeratePaths prevPath kind do
+                  List.mapi (fun i v -> if i + 1 = prevPath.Length then CollectionValue v else v) l
+          | TypeKind.Option kind ->
+              for l in enumeratePaths prevPath kind do
+                  List.mapi (fun i v -> if i + 1 = prevPath.Length then OptionValue v else v) l
+          | TypeKind.Prim p ->
+              let isNullable =
+                  match p with
+                  | PrimTypeKind.Any -> true
+                  | PrimTypeKind.String s ->
+                      match s with
+                      | StringFormat.DateString
+                      | StringFormat.DateTimeString
+                      | StringFormat.Custom _ -> false
+                      | _ -> true
+                  | _ -> false
+              if isNullable then
+                  [yield! prevPath; NullableValue]
+          | _ -> prevPath
+    }
+
 /// Generate checks for unexpected nulls
 let private generateNullCheckersArray sourceVar (schema: TypeSchema) =
-    let rec enumeratePaths prevPath kind =
-        seq {
-            match kind with
-            | TypeKind.Object o ->
-                yield!
-                    o.Properties
-                    |> Seq.collect ^ fun (name, kind, _) ->
-                        let newPath = [yield! prevPath; Property name]
-                        enumeratePaths newPath kind
-              | TypeKind.Array (kind, _) ->
-                  for l in enumeratePaths prevPath kind do
-                      List.mapi (fun i v -> if i + 1 = prevPath.Length then CollectionValue v else v) l
-              | TypeKind.Option kind ->
-                  for l in enumeratePaths prevPath kind do
-                      List.mapi (fun i v -> if i + 1 = prevPath.Length then OptionValue v else v) l
-              | TypeKind.Prim p ->
-                  let isNullable =
-                      match p with
-                      | PrimTypeKind.Any -> true
-                      | PrimTypeKind.String s ->
-                          match s with
-                          | StringFormat.DateString
-                          | StringFormat.DateTimeString
-                          | StringFormat.Custom _ -> false
-                          | _ -> true
-                      | _ -> false
-                  if isNullable then
-                      [yield! prevPath; NullableValue]
-              | _ -> prevPath
-        }
     let rec analyze expr path mods (l: PropertyPathSegment list) =
         seq {
             // normalize value to seq<'a> guaranteed to be without nulls
