@@ -167,7 +167,7 @@ let giraffeAst (api: Api) =
           openDecl "System.Threading.Tasks"
           openDecl "Microsoft.AspNetCore.Http"
           
-          let tmpBindingSchemas =
+          let temporarySchemasForBindingBeforeDefaultsAppliance =
               [ for path in api.Paths do
                   for method in path.Methods do
                       if method.Parameters.IsSome then
@@ -175,8 +175,8 @@ let giraffeAst (api: Api) =
                             if source = Query || isBody source then // non-query and non-body bindings don't support default values
                                 let generatedTypes = generateOptionalType schema.Kind schema.DefaultValue (Some schema.Name)
                                 yield! generatedTypes ]
-          let tmpBindingSchemasMap =
-              tmpBindingSchemas
+          let temporarySchemasForBindingBeforeDefaultsApplianceMap =
+              temporarySchemasForBindingBeforeDefaultsAppliance
               |> Seq.collect (fun v -> [ SourceType v.OriginalName, v; GeneratedType v.GeneratedName, v ])
               |> Map
 
@@ -188,7 +188,7 @@ let giraffeAst (api: Api) =
                 if errorsPossible then
                     yield! CodeGenErrorsDU.typeSchemas
                 yield! api.Schemas
-                yield! tmpBindingSchemas |> Seq.map ^ fun v -> { Kind = v.Generated; Name = v.GeneratedName; Docs = None; DefaultValue = None }
+                yield! temporarySchemasForBindingBeforeDefaultsAppliance |> Seq.map ^ fun v -> { Kind = v.Generated; Name = v.GeneratedName; Docs = None; DefaultValue = None }
                 for path in api.Paths do
                   for method in path.Methods do
                       if method.Parameters.IsSome then
@@ -305,7 +305,7 @@ let giraffeAst (api: Api) =
                                 let maybeQueryBindingType =
                                     maybeQuery
                                     |> Option.map ^ fun q ->
-                                        let tmpSchema = tmpBindingSchemasMap |> Map.tryFind (SourceType q.Name)
+                                        let tmpSchema = temporarySchemasForBindingBeforeDefaultsApplianceMap |> Map.tryFind (SourceType q.Name)
                                         tmpSchema, q
                                     
                                 let queryBinding = "queryArgs"
@@ -320,7 +320,7 @@ let giraffeAst (api: Api) =
                                         tmpSchema
                                         |> Option.map ^ fun v ->
                                             bindRaw
-                                            ^|> Result.mapExpr (DefaultsGeneration.generateDefaultMappingFunFromSchema tmpBindingSchemasMap v querySchema)
+                                            ^|> Result.mapExpr (DefaultsGeneration.generateDefaultMappingFunFromSchema temporarySchemasForBindingBeforeDefaultsApplianceMap v querySchema)
                                         |> Option.defaultValue bindRaw
                                         |> CodeGenNullChecking.bindNullCheckIntoResult "query" querySchema CodeGenErrorsDU.errOuterQuery
                                     |> Option.map ^ letExpr queryBinding []
@@ -398,7 +398,7 @@ let giraffeAst (api: Api) =
                                 let maybeBodyBindingType =
                                     maybeBodyOpenApi
                                     |> Option.map ^ fun q ->
-                                        let tmpSchema = tmpBindingSchemasMap |> Map.tryFind (SourceType (snd q).Name)
+                                        let tmpSchema = temporarySchemasForBindingBeforeDefaultsApplianceMap |> Map.tryFind (SourceType (snd q).Name)
                                         tmpSchema, q
                                 let maybeBindBody =
                                     maybeBodyBindingType
@@ -422,7 +422,7 @@ let giraffeAst (api: Api) =
                                                     tmpSchema
                                                     |> Option.map ^ fun v ->
                                                         bindRaw
-                                                        ^|> Result.mapExpr (DefaultsGeneration.generateDefaultMappingFunFromSchema tmpBindingSchemasMap v bodySchema)
+                                                        ^|> Result.mapExpr (DefaultsGeneration.generateDefaultMappingFunFromSchema temporarySchemasForBindingBeforeDefaultsApplianceMap v bodySchema)
                                                     |> Option.defaultValue bindRaw
                                                     |> CodeGenNullChecking.bindNullCheckIntoResult "body" bodySchema CodeGenErrorsDU.errOuterBody
                                                 let catchClause =
