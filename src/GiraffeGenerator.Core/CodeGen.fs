@@ -247,12 +247,7 @@ let giraffeAst (api: Api) =
                           
                       let maybePathOpenApi =
                           method.Parameters
-                          |> Option.bind ^ fun p ->
-                              p
-                              |> Map.toSeq
-                              |> Seq.filter (fst >> ((=) Path))
-                              |> Seq.map snd
-                              |> Seq.tryExactlyOne
+                          |> Option.bind (Map.tryFind Path)
                       let maybePath = maybePathOpenApi |> Option.map (fun x -> x.Kind |> extractResponseSynType (Some x.Name))
                           
                       let maybeNonBody = maybeCombinedType |> Option.orElse maybeSingleNonBodyParameter
@@ -301,7 +296,7 @@ let giraffeAst (api: Api) =
                           let defaultImplementationEmitter implDefn (maybePath: TypeSchema option) =
                                 let maybeQuery =
                                     method.Parameters
-                                    |> Option.bind (fun x -> x |> Map.toSeq |> Seq.filter (fst >> ((=) Query)) |> Seq.map snd |> Seq.tryExactlyOne)
+                                    |> Option.bind (Map.tryFind Query)
                                 let maybeQueryBindingType =
                                     maybeQuery
                                     |> Option.map ^ fun q ->
