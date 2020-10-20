@@ -75,6 +75,29 @@ let getUniqueParameterNameForLocationOrFail ((parameterName, parameterLocations)
             failwithf "Unable to generate distinct input property name: property \"%s\" is duplicated by location" parameterName
         parameterLocations |> Seq.map (fun loc -> parameterName + "From" + (loc.ToString()), (loc, parameterName))
 
+type CombinedRecordPropertyNamesMapping =
+    { CombinedRecordPropertyName: string
+      OriginalLocation: PayloadLocation
+      OriginalName: string }
+let getCombinedRecordPropertyNamesFrom parameters =
+    parameters
+    |> Map.toSeq
+    |> Seq.filter (fst >> isNotBody)
+    |> Seq.collect extractParameterObjectNamesWithLocations
+    |> Seq.groupBy fst
+    |> Seq.map (fun (parameterName, group) -> parameterName, group |> Seq.map (fun (_, parameterLocation) -> parameterLocation) |> Seq.toArray)
+    |> Seq.collect getUniqueParameterNameForLocationOrFail
+    |> Seq.groupBy fst
+    // implicit failwith just in case getUniqueParameterNameForLocation fail to do it's job
+    |> Seq.map (fun (combinedTypePropertyName, v) -> combinedTypePropertyName, v |> Seq.map snd |> Seq.exactlyOne)
+    |> Seq.map (fun (combinedPropertyName, (originalLocation, originalName)) ->
+        {
+            CombinedRecordPropertyName = combinedPropertyName
+            OriginalLocation = originalLocation
+            OriginalName = originalName
+        }) 
+    
+    
 let hasMultipleNonBodyParameters parameters =
     parameters
     |> Map.toSeq
@@ -102,26 +125,6 @@ let giraffeAst (api: Api) =
           // generate helper functions for null checking
           yield! CodeGenNullChecking.generateNullCheckingHelpers()
 
-          let parametersLocationNameMapping =
-              seq {
-                  for path in api.Paths do
-                      for method in path.Methods do
-                          if method.Parameters.IsSome then
-                              let locationNameMapping =
-                                  method.Parameters.Value
-                                  |> Map.toSeq
-                                  |> Seq.filter (fst >> isNotBody)
-                                  |> Seq.collect extractParameterObjectNamesWithLocations
-                                  |> Seq.groupBy fst
-                                  |> Seq.map (fun (parameterName, group) -> parameterName, group |> Seq.map (fun (_, parameterLocation) -> parameterLocation) |> Seq.toArray)
-                                  |> Seq.collect getUniqueParameterNameForLocationOrFail
-                                  |> Seq.groupBy fst
-                                  |> Seq.map (fun (l, v) -> l, v |> Seq.map snd |> Seq.exactlyOne)
-                                  |> Map
-                              (method.Method, method.Name), locationNameMapping
-                          
-              } |> Map
-          
           let combinedInputTypeNames =
               api.Paths
               |> Seq.collect (fun x -> x.Methods)
@@ -158,10 +161,8 @@ let giraffeAst (api: Api) =
                             schema
                         if hasMultipleNonBodyParameters method.Parameters.Value then
                             let mapping =
-                                parametersLocationNameMapping
-                                |> Map.find (method.Method, method.Name)
-                                |> Map.toSeq
-                                |> Seq.map ^ fun (newName, (loc, oldName)) -> loc, (oldName, newName)
+                                getCombinedRecordPropertyNamesFrom method.Parameters.Value
+                                |> Seq.map ^ fun mapping -> mapping.OriginalLocation, (mapping.OriginalName, mapping.CombinedRecordPropertyName)
                                 |> Seq.groupBy fst
                                 |> Seq.map (fun (k, v) -> k, v |> Seq.map snd |> Map)
                                 |> Map
@@ -334,7 +335,8 @@ let giraffeAst (api: Api) =
                                         identExpr binded
                                             ^|> Result.mapExpr
                                                 ^ lambda ([simplePat binded] |> simplePats) ^ generateFinal()
-                                let generateInputsCombination synt (schema: TypeSchema) bindings =
+                                
+                                let generateInputsCombination combinedRecordPropertyToOriginalValue synt (schema: TypeSchema) bindings =
                                     let finalGenerator () =
                                         letExprComplex
                                             (SynPat.Typed(SynPat.Named(SynPat.Wild r, ident "v", false, None, r), synt, r))
@@ -342,10 +344,9 @@ let giraffeAst (api: Api) =
                                                 let bindings = Map bindings
                                                 match schema.Kind with
                                                 | TypeKind.Object o ->
-                                                    let mapping = parametersLocationNameMapping |> Map.find (method.Method, method.Name)
                                                     [
                                                         for (name, _, _) in o.Properties do
-                                                            let (sourceLocation, sourceName) = mapping |> Map.find name
+                                                            let (sourceLocation, sourceName) = combinedRecordPropertyToOriginalValue |> Map.find name
                                                             let sourceBinding = bindings |> Map.find sourceLocation
                                                             name, longIdentExpr (sourceBinding + "." + sourceName)
                                                     ]
@@ -368,9 +369,13 @@ let giraffeAst (api: Api) =
                                     |> Option.bind
                                         (
                                             fun (synt,schema) ->
+                                                let combinedRecordPropertyToOriginalValue =
+                                                    getCombinedRecordPropertyNamesFrom method.Parameters.Value
+                                                    |> Seq.map (fun r -> r.CombinedRecordPropertyName, (r.OriginalLocation, r.OriginalName))
+                                                    |> Map
                                                 nonCombinedNonBodyArgs
                                                 |> fun x -> if x.Length > 1 then Some x else None
-                                                |> Option.map ^ generateInputsCombination synt schema
+                                                |> Option.map ^ generateInputsCombination combinedRecordPropertyToOriginalValue synt schema
                                         )
                                     |> Option.map ^ letExpr combinedInputs []
                                 
