@@ -82,10 +82,11 @@ let giraffeAst (api: Api) =
           let tryExtractError =
               let value = "value"
               letDecl false tryExtractErrorName [value] None
-              ^ simpleValueMatching value
+              ^ matchExpr value
                     [
-                        "Ok", "whatever", identExpr "None"
-                        "Error", "err", app (identExpr "Some") (identExpr "err") 
+                        clause (SynPat.LongIdent(longIdentWithDots "Ok", None, None, [SynPat.Wild r] |> Pats, None, r)) (identExpr "None")
+                        clause (SynPat.LongIdent(longIdentWithDots "Error", None, None, [SynPat.Named(SynPat.Wild(r), ident "err", false, None, r)] |> Pats, None, r))
+                            ^ app (identExpr "Some") (identExpr "err") 
                     ]
           tryExtractError
 
