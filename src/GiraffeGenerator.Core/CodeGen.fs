@@ -146,16 +146,6 @@ let giraffeAst (api: Api) =
           openDecl "System.Threading.Tasks"
           openDecl "Microsoft.AspNetCore.Http"
           
-          CodeGenErrorsDU.typeSchemas
-            |> extractRecords
-            |> types
-            
-          // generate helper functions for error handling
-          yield! CodeGenErrorsDU.generateHelperFunctions()
-
-          // generate helper functions for null checking
-          yield! CodeGenNullChecking.generateNullCheckingHelpers()
-
           let tmpBindingSchemas =
               [ for path in api.Paths do
                   for method in path.Methods do
@@ -170,7 +160,8 @@ let giraffeAst (api: Api) =
               |> Map
 
           let allSchemas =
-              [ 
+              [
+                yield! CodeGenErrorsDU.typeSchemas
                 yield! api.Schemas
                 yield! tmpBindingSchemas |> Seq.map ^ fun v -> { Kind = v.Generated; Name = v.GeneratedName; Docs = None; DefaultValue = None }
                 for path in api.Paths do
@@ -182,7 +173,16 @@ let giraffeAst (api: Api) =
                             let name = requestCommonInputTypeName method
                             generateCombinedRecordTypeDefnFor method.Parameters.Value name]
 
-          if not allSchemas.IsEmpty then types (extractRecords allSchemas)
+          if not allSchemas.IsEmpty then
+              yield! [
+                 types (extractRecords allSchemas)
+
+                 // generate helper functions for error handling
+                 yield! CodeGenErrorsDU.generateHelperFunctions()
+
+                 // generate helper functions for null checking
+                 yield! CodeGenNullChecking.generateNullCheckingHelpers()
+              ]
 
           abstractClassDecl
               "Service"
