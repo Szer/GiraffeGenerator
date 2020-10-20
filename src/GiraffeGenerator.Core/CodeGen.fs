@@ -104,31 +104,31 @@ let giraffeAst (api: Api) =
                       for method in path.Methods do
                           if method.Parameters.IsSome then
                               let locationNameMapping =
-                                method.Parameters.Value
-                                |> Map.toSeq
-                                |> Seq.filter (fst >> isNotBody)
-                                |> Seq.collect extractParameterObjectNamesWithLocations
-                                 |> Seq.groupBy fst
-                                 |> Seq.map (fun (parameterName, group) -> parameterName, group |> Seq.map (fun (_, parameterLocation) -> parameterLocation) |> Seq.toArray)
-                                 |> Seq.collect
-                                     (
-                                         fun (parameterName, parameterLocations) ->
-                                             if parameterLocations.Length = 1 then
-                                                 seq { parameterName, (parameterLocations.[0], parameterName) }
-                                             else
-                                                 let unnameableCount =
-                                                     parameterLocations
-                                                     |> Seq.countBy id
-                                                     |> Seq.map snd
-                                                     |> Seq.filter ((<>) 1)
-                                                     |> Seq.length
-                                                 if unnameableCount > 0 then
-                                                     failwithf "Unable to generate distinct input property name: property \"%s\" is duplicated by location" parameterName
-                                                 parameterLocations |> Seq.map (fun loc -> parameterName + "From" + (loc.ToString()), (loc, parameterName))
-                                     )
-                                 |> Seq.groupBy fst
-                                 |> Seq.map (fun (l, v) -> l, v |> Seq.map snd |> Seq.exactlyOne)
-                                 |> Map
+                                  method.Parameters.Value
+                                  |> Map.toSeq
+                                  |> Seq.filter (fst >> isNotBody)
+                                  |> Seq.collect extractParameterObjectNamesWithLocations
+                                  |> Seq.groupBy fst
+                                  |> Seq.map (fun (parameterName, group) -> parameterName, group |> Seq.map (fun (_, parameterLocation) -> parameterLocation) |> Seq.toArray)
+                                  |> Seq.collect
+                                      (
+                                          fun (parameterName, parameterLocations) ->
+                                              if parameterLocations.Length = 1 then
+                                                  seq { parameterName, (parameterLocations.[0], parameterName) }
+                                              else
+                                                  let unnameableCount =
+                                                      parameterLocations
+                                                      |> Seq.countBy id
+                                                      |> Seq.map snd
+                                                      |> Seq.filter ((<>) 1)
+                                                      |> Seq.length
+                                                  if unnameableCount > 0 then
+                                                      failwithf "Unable to generate distinct input property name: property \"%s\" is duplicated by location" parameterName
+                                                  parameterLocations |> Seq.map (fun loc -> parameterName + "From" + (loc.ToString()), (loc, parameterName))
+                                      )
+                                  |> Seq.groupBy fst
+                                  |> Seq.map (fun (l, v) -> l, v |> Seq.map snd |> Seq.exactlyOne)
+                                  |> Map
                               (method.Method, method.Name), locationNameMapping
                           
               } |> Map
