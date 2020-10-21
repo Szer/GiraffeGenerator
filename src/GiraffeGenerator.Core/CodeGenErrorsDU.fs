@@ -13,22 +13,22 @@ let private summary v = Some { Summary = Some [v]; Example = None; Remarks = Non
 let private errInnerType =
   DU {
       Name = errInnerTypeName
-      Docs = summary "Represents some concrete error somewhere in arguments"
+      Docs = summary "Input binding error"
       Cases =
           [
               {
                   CaseName = Some errInnerGiraffeBinding
-                  Docs = summary "Giraffe error returned in Result.Error of tryBindXXX method"
+                  Docs = summary "Giraffe returned a Result.Error from tryBindXXX"
                   Kind = Prim <| PrimTypeKind.String StringFormat.String
               }
               {
                   CaseName = Some errInnerFormatterBindingExn
-                  Docs = summary "Represents exception occured during IFormatter bind"
+                  Docs = summary "Exception occurred during IFormatter bind"
                   Kind = BuiltIn "exn"
               }
               {
                   CaseName = Some errInnerModelBindingUnexpectedNull
-                  Docs = summary "For IFormatter bind (JSON, for example), represents a null that happens to exist because no value was provided for a property which is required"
+                  Docs = summary "Null has been binded in required property"
                   Kind = TypeKind.Object
                       {
                           Name = None
@@ -42,7 +42,7 @@ let private errInnerType =
               }
               {
                   CaseName = Some errInnerCombined
-                  Docs = summary "Represents multiple errors occured in one location"
+                  Docs = summary "Multiple errors occurred in one location"
                   Kind = TypeKind.Array (DU { Name = errInnerTypeName; Docs = None; Cases = [] }, None)
               }
           ]
@@ -55,27 +55,27 @@ let errOuterCombined = "CombinedArgumentLocationError"
 let private errOuterType =
   DU {
       Name = errOuterTypeName
-      Docs = summary "Represents error in arguments of some location"
+      Docs = summary "Location argument error"
       Cases =
           [
               {
                   CaseName = Some errOuterBody
-                  Docs = summary "Represents error in body"
+                  Docs = summary "Body error"
                   Kind = errInnerType
               }
               {
                   CaseName = Some errOuterQuery
-                  Docs = summary "Represents error in query"
+                  Docs = summary "Query error"
                   Kind = errInnerType
               }
               {
                   CaseName = Some errOuterPath
-                  Docs = summary "Represents error in path"
+                  Docs = summary "Path error"
                   Kind = errInnerType
               }
               {
                   CaseName = Some errOuterCombined
-                  Docs = summary "Represents errors in multiple locations"
+                  Docs = summary "Multiple locations errors"
                   Kind = TypeKind.Array (DU { Name = errOuterTypeName; Docs = None; Cases = [] }, None)
               }
           ]
@@ -110,7 +110,7 @@ let private innerErrToStringDecl =
     [
         errInnerGiraffeBinding, err, sprintfExpr "%sGiraffe binding error: %s" [identExpr sepVar; identExpr err]
         errInnerModelBindingUnexpectedNull, err,
-            sprintfExpr "%sUnexpected null was found somewhere on path %s.%s"
+            sprintfExpr "%sUnexpected null has been found somewhere on path %s.%s"
             ^ [identExpr sepVar; longIdentExpr (sprintf "%s.TypeName" err); paren (app (app (longIdentExpr "String.concat") (strExpr ".")) (longIdentExpr (sprintf "%s.PropertyPath" err))) ]
         errInnerFormatterBindingExn, err, longIdentExpr (sprintf "%s.Message" err)
         errInnerCombined, err,
