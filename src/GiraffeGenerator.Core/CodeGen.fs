@@ -157,6 +157,52 @@ let hasErrorsPossible api =
                     |> Seq.exists (fst >> isNotPath)
     } |> Seq.contains true
 
+
+/// generates arbitrary number of nested Result.bind applications
+/// given
+///   bound = "bound"
+///   leftToBind = ["a";"b";"c"]
+///   generateFinal = fun () -> tupleExpr ["a";"b";"c"]
+/// it would generate following code:
+/// bound
+/// |> Result.bind (fun a ->
+///     a |> Result.bind (fun b ->
+///            b |> Result.map (fun c -> a,b,c)))
+let rec generateBinds bound leftToBind generateFinal =
+    if List.length leftToBind > 0 then
+        identExpr bound
+        ^|> Result.bindExpr
+            ^ lambda ([simplePat bound] |> simplePats)
+                ^ generateBinds leftToBind.Head leftToBind.Tail generateFinal
+    else
+        identExpr bound
+            ^|> Result.mapExpr
+                ^ lambda ([simplePat bound] |> simplePats) ^ generateFinal()
+
+/// generates mapping from all non-body parameters to combined record
+/// (combined records are described in module generation)
+/// see also: generateBinds
+let generateInputsCombination combinedRecordPropertyToOriginalValue synt (schema: TypeSchema) bindings =
+    let finalGenerator () =
+        letExprComplex
+            (SynPat.Typed(SynPat.Named(SynPat.Wild r, ident "v", false, None, r), synt, r))
+            (
+                let bindings = Map bindings
+                match schema.Kind with
+                | TypeKind.Object o ->
+                    [
+                        for (name, _, _) in o.Properties do
+                            let (sourceLocation, sourceName) = combinedRecordPropertyToOriginalValue |> Map.find name
+                            let sourceBinding = bindings |> Map.find sourceLocation
+                            name, longIdentExpr (sourceBinding + "." + sourceName)
+                    ]
+                | _ -> failwith "combined record should be a record, you know"
+                |> recordExpr
+            )
+            (identExpr "v")
+    let onlyNames = bindings |> List.map snd
+    generateBinds onlyNames.Head onlyNames.Tail finalGenerator
+
 /// Creating whole module AST for Giraffe webapp
 let giraffeAst (api: Api) =
     moduleDecl
@@ -335,38 +381,6 @@ let giraffeAst (api: Api) =
                                     |> Option.map ^ letExpr pathBinding []
 
                                 let combinedInputs = "combinedArgs"
-                                let rec generateBinds binded leftToBind generateFinal =
-                                    if List.length leftToBind > 0 then
-                                        identExpr binded
-                                        ^|> Result.bindExpr
-                                            ^ lambda ([simplePat binded] |> simplePats)
-                                                ^ generateBinds leftToBind.Head leftToBind.Tail generateFinal
-                                    else
-                                        identExpr binded
-                                            ^|> Result.mapExpr
-                                                ^ lambda ([simplePat binded] |> simplePats) ^ generateFinal()
-                                
-                                let generateInputsCombination combinedRecordPropertyToOriginalValue synt (schema: TypeSchema) bindings =
-                                    let finalGenerator () =
-                                        letExprComplex
-                                            (SynPat.Typed(SynPat.Named(SynPat.Wild r, ident "v", false, None, r), synt, r))
-                                            (
-                                                let bindings = Map bindings
-                                                match schema.Kind with
-                                                | TypeKind.Object o ->
-                                                    [
-                                                        for (name, _, _) in o.Properties do
-                                                            let (sourceLocation, sourceName) = combinedRecordPropertyToOriginalValue |> Map.find name
-                                                            let sourceBinding = bindings |> Map.find sourceLocation
-                                                            name, longIdentExpr (sourceBinding + "." + sourceName)
-                                                    ]
-                                                | _ -> failwith "combined record should be a record, you know"
-                                                |> recordExpr
-                                            )
-                                            (identExpr "v")
-                                    let onlyNames = bindings |> List.map snd
-                                    generateBinds onlyNames.Head onlyNames.Tail finalGenerator
-                                    
                                 let nonCombinedNonBodyArgs =
                                     [
                                         maybeBindPath |> Option.map ^ fun _ -> Path, pathBinding
@@ -378,14 +392,14 @@ let giraffeAst (api: Api) =
                                     Option.map2 (fun a b -> a,b) maybeCombinedType maybeCombinedTypeOpenApi
                                     |> Option.bind
                                         (
-                                            fun (synt,schema) ->
+                                            fun (combinedRecordSynType, combinedRecordSchema) ->
                                                 let combinedRecordPropertyToOriginalValue =
                                                     getCombinedRecordPropertyNamesFrom method.Parameters.Value
                                                     |> Seq.map (fun r -> r.CombinedRecordPropertyName, (r.OriginalLocation, r.OriginalName))
                                                     |> Map
                                                 nonCombinedNonBodyArgs
                                                 |> fun x -> if x.Length > 1 then Some x else None
-                                                |> Option.map ^ generateInputsCombination combinedRecordPropertyToOriginalValue synt schema
+                                                |> Option.map ^ generateInputsCombination combinedRecordPropertyToOriginalValue combinedRecordSynType combinedRecordSchema
                                         )
                                     |> Option.map ^ letExpr combinedInputs []
                                 
