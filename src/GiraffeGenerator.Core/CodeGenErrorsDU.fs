@@ -9,25 +9,26 @@ let errInnerGiraffeBinding = "GiraffeBindingError"
 let errInnerFormatterBindingExn = "FormatterBindingException"
 let errInnerModelBindingUnexpectedNull = "ModelBindingUnexpectedNull"
 let errInnerCombined = "CombinedArgumentErrors"
+let private summary v = Some { Summary = Some [v]; Example = None; Remarks = None; }
 let private errInnerType =
   DU {
       Name = errInnerTypeName
-      Docs = Some { Summary = Some ["Represents some concrete error somewhere in arguments"]; Example = None; Remarks = None }
+      Docs = summary "Represents some concrete error somewhere in arguments"
       Cases =
           [
               {
                   CaseName = Some errInnerGiraffeBinding
-                  Docs = Some { Summary = Some ["Giraffe error returned in Result.Error of tryBindXXX method"]; Example = None; Remarks = None }
+                  Docs = summary "Giraffe error returned in Result.Error of tryBindXXX method"
                   Kind = Prim <| PrimTypeKind.String StringFormat.String
               }
               {
                   CaseName = Some errInnerFormatterBindingExn
-                  Docs = Some { Summary = Some [ "Represents exception occured during IFormatter bind" ]; Example = None; Remarks = None }
+                  Docs = summary "Represents exception occured during IFormatter bind"
                   Kind = BuiltIn "exn"
               }
               {
                   CaseName = Some errInnerModelBindingUnexpectedNull
-                  Docs = Some { Summary = Some ["For IFormatter bind (JSON, for example), represents a null that happens to exist because no value was provided for a property which is required"]; Example = None; Remarks = None }
+                  Docs = summary "For IFormatter bind (JSON, for example), represents a null that happens to exist because no value was provided for a property which is required"
                   Kind = TypeKind.Object
                       {
                           Name = None
@@ -41,7 +42,7 @@ let private errInnerType =
               }
               {
                   CaseName = Some errInnerCombined
-                  Docs = Some { Summary = Some ["Represents multiple errors occured in one location"]; Example = None; Remarks = None }
+                  Docs = summary "Represents multiple errors occured in one location"
                   Kind = TypeKind.Array (DU { Name = errInnerTypeName; Docs = None; Cases = [] }, None)
               }
           ]
@@ -54,27 +55,27 @@ let errOuterCombined = "CombinedArgumentLocationError"
 let private errOuterType =
   DU {
       Name = errOuterTypeName
-      Docs = Some { Summary = Some ["Represents error in arguments of some location"]; Example = None; Remarks = None; }
+      Docs = summary "Represents error in arguments of some location"
       Cases =
           [
               {
                   CaseName = Some errOuterBody
-                  Docs = Some { Summary = Some ["Represents error in body"]; Example = None; Remarks = None; }
+                  Docs = summary "Represents error in body"
                   Kind = errInnerType
               }
               {
                   CaseName = Some errOuterQuery
-                  Docs = Some { Summary = Some ["Represents error in query"]; Example = None; Remarks = None; }
+                  Docs = summary "Represents error in query"
                   Kind = errInnerType
               }
               {
                   CaseName = Some errOuterPath
-                  Docs = Some { Summary = Some ["Represents error in path"]; Example = None; Remarks = None; }
+                  Docs = summary "Represents error in path"
                   Kind = errInnerType
               }
               {
                   CaseName = Some errOuterCombined
-                  Docs = Some { Summary = Some ["Represents errors in multiple locations"]; Example = None; Remarks = None; }
+                  Docs = summary "Represents errors in multiple locations"
                   Kind = TypeKind.Array (DU { Name = errOuterTypeName; Docs = None; Cases = [] }, None)
               }
           ]
