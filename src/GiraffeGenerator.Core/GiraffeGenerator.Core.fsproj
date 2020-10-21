@@ -11,7 +11,6 @@
     <Compile Include="OpenApi.fs" />
     <Compile Include="OpenApiToAstTypesMatchingAndConversion.fs" />
     <Compile Include="CodeGenErrorsDU.fs" />
-    <Compile Include="CodeGenNullChecking.fs" />
     <Compile Include="CodeGen.fs" />
   </ItemGroup>
 

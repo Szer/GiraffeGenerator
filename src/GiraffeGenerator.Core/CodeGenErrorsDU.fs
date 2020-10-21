@@ -7,7 +7,6 @@ open OpenApi
 let errInnerTypeName = "ArgumentError"
 let errInnerGiraffeBinding = "GiraffeBindingError"
 let errInnerFormatterBindingExn = "FormatterBindingException"
-let errInnerModelBindingUnexpectedNull = "ModelBindingUnexpectedNull"
 let errInnerCombined = "CombinedArgumentErrors"
 let private summary v = Some { Summary = Some [v]; Example = None; Remarks = None; }
 let private errInnerType =
@@ -25,20 +24,6 @@ let private errInnerType =
                   CaseName = Some errInnerFormatterBindingExn
                   Docs = summary "Exception occurred during IFormatter bind"
                   Kind = BuiltIn "exn"
-              }
-              {
-                  CaseName = Some errInnerModelBindingUnexpectedNull
-                  Docs = summary "Null has been binded in required property"
-                  Kind = TypeKind.Object
-                      {
-                          Name = None
-                          Properties =
-                              [
-                                  "TypeName", Prim (PrimTypeKind.String StringFormat.String), None
-                                  "PropertyPath", TypeKind.Array (Prim <| PrimTypeKind.String StringFormat.String, None), None
-                              ]
-                          Docs = None
-                      }
               }
               {
                   CaseName = Some errInnerCombined
@@ -109,9 +94,6 @@ let private innerErrToStringDecl =
   ^ simpleValueMatching valueParam
     [
         errInnerGiraffeBinding, err, sprintfExpr "%sGiraffe binding error: %s" [identExpr sepVar; identExpr err]
-        errInnerModelBindingUnexpectedNull, err,
-            sprintfExpr "%sUnexpected null has been found somewhere on path %s.%s"
-            ^ [identExpr sepVar; longIdentExpr (sprintf "%s.TypeName" err); paren (app (app (longIdentExpr "String.concat") (strExpr ".")) (longIdentExpr (sprintf "%s.PropertyPath" err))) ]
         errInnerFormatterBindingExn, err, longIdentExpr (sprintf "%s.Message" err)
         errInnerCombined, err,
             sprintfExpr "%sMultiple errors:\\n%s"
