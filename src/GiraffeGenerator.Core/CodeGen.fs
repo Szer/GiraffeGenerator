@@ -511,18 +511,18 @@ let giraffeAst (api: Api) =
                                 
                                 let finalCall =
                                     letBangExpr                                                                                 
-                                      "input"                                                                                 
+                                      "logicOutput"                                                                                 
                                       (
                                           let sucMethod = sprintf "this.%sInput" method.Name |> longIdentExpr
                                           let errMethod = sprintf "this.%sInputError" method.Name |> longIdentExpr
-                                          let allRawBindings = [ nonBody; body ] |> List.choose id
-                                          if allRawBindings.Length = 0 then
+                                          let allBindings = [ nonBody; body ] |> List.choose id
+                                          if allBindings.Length = 0 then
                                               app sucMethod argExpr
                                           else
                                               matchExpr finalArgsBinding
                                                 [
-                                                    clause (SynPat.LongIdent(longIdentWithDots "Ok", None, None, Pats <| [tuplePat allRawBindings], None, r))
-                                                    ^ app sucMethod (tupleExpr [ yield! allRawBindings; "ctx" ])
+                                                    clause (SynPat.LongIdent(longIdentWithDots "Ok", None, None, Pats <| [tuplePat allBindings], None, r))
+                                                    ^ app sucMethod (tupleExpr [ yield! allBindings; "ctx" ])
                                                     clause (synLongPat "Error" "e")
                                                     ^ app errMethod (tupleExpr ["e"; "ctx"])
                                                 ]
@@ -533,7 +533,7 @@ let giraffeAst (api: Api) =
                                                  if respondsUnit then
                                                      "()"
                                                  else
-                                                    "input"
+                                                    "logicOutput"
                                                  "next"
                                                  "ctx"
                                              ])
