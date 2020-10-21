@@ -352,13 +352,18 @@ let giraffeAst (api: Api) =
                                 let queryBinding = "queryArgs"
                                 let maybeBindQuery =
                                     maybeQueryBindingType
-                                    |> Option.map ^ fun (tmpSchema, querySchema) ->
+                                    |> Option.map ^ fun (queryForBindingSchema, querySchema) ->
+                                        let bindingType =
+                                            queryForBindingSchema
+                                            |> Option.map (fun v -> v.GeneratedName)
+                                            |> Option.defaultValue querySchema.Name
+                                            |> synType
                                         let bindRaw =
                                             app
-                                                (typeApp (longIdentExpr "ctx.TryBindQueryString") [tmpSchema |> Option.map (fun v -> v.GeneratedName) |> Option.defaultValue querySchema.Name |> synType])
+                                                (typeApp (longIdentExpr "ctx.TryBindQueryString") [bindingType])
                                                 (longIdentExpr "System.Globalization.CultureInfo.InvariantCulture")
                                             ^|> Result.mapErrorExpr (identExpr CodeGenErrorsDU.errInnerGiraffeBinding ^>> identExpr CodeGenErrorsDU.errOuterQuery)
-                                        tmpSchema
+                                        queryForBindingSchema
                                         |> Option.map ^ fun v ->
                                             bindRaw
                                             ^|> Result.mapExpr (DefaultsGeneration.generateDefaultMappingFunFromSchema temporarySchemasForBindingBeforeDefaultsApplianceMap v querySchema)
