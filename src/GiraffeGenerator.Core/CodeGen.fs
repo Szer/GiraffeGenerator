@@ -411,12 +411,12 @@ let giraffeAst (api: Api) =
                                 let bodyBinding = "bodyArgs"
                                 let maybeBodyBindingType =
                                     maybeBodyOpenApi
-                                    |> Option.map ^ fun q ->
-                                        let tmpSchema = temporarySchemasForBindingBeforeDefaultsApplianceMap |> Map.tryFind (SourceType (snd q).Name)
-                                        tmpSchema, q
+                                    |> Option.map ^ fun bodyInputLocationAndSchema ->
+                                        let bodyInputForBindingMapping = temporarySchemasForBindingBeforeDefaultsApplianceMap |> Map.tryFind (SourceType (snd bodyInputLocationAndSchema).Name)
+                                        bodyInputForBindingMapping, bodyInputLocationAndSchema
                                 let maybeBindBody =
                                     maybeBodyBindingType
-                                    |> Option.map ^ fun (tmpSchema, (location, bodySchema)) ->
+                                    |> Option.map ^ fun (bodyInputForBindingMapping, (location, bodySchema)) ->
                                         letBangExpr bodyBinding
                                             (
                                                 let expr =
@@ -428,12 +428,12 @@ let giraffeAst (api: Api) =
                                                         | v -> failwithf "Content type %A is not supported" v 
                                                     | _ -> failwith "Body should be located in body, you know"
                                                     |> longIdentExpr
-                                                let typeApp = typeApp expr [tmpSchema |> Option.map (fun v -> v.GeneratedName) |> Option.defaultValue bodySchema.Name |> synType]
+                                                let typeApp = typeApp expr [bodyInputForBindingMapping |> Option.map (fun v -> v.GeneratedName) |> Option.defaultValue bodySchema.Name |> synType]
                                                 let call = app typeApp (tupleExpr [])
                                                 let bindRaw =
                                                     letBangExpr bodyBinding call (returnExpr ^ app (identExpr "Ok") (identExpr bodyBinding))
                                                 let bindCallIntoResult =
-                                                    tmpSchema
+                                                    bodyInputForBindingMapping
                                                     |> Option.map ^ fun v ->
                                                         bindRaw
                                                         ^|> Result.mapExpr (DefaultsGeneration.generateDefaultMappingFunFromSchema temporarySchemasForBindingBeforeDefaultsApplianceMap v bodySchema)
