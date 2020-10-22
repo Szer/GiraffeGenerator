@@ -21,6 +21,7 @@ It's still in VERY early stage of development, so only VERY basic features are b
 - [ ] Creating models from OpenAPI schemas
    - [x] records generated from schema definitions with all data types from spec
    - [x] handlers in generated webApp should support these types
+   - [x] default values support for primitive types
    - [ ] `oneOf` support
    - [ ] `anyOf` support
    - [ ] `allOf` support
