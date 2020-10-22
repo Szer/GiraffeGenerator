@@ -78,7 +78,7 @@ type PrimTypeKind =
         | _ -> failwithf "Unexpected type: %s and format: %A" typeKind format
         
     member s.GetDefaultLiteral (value: IOpenApiPrimitive) =
-        let fw t = sprintf "%s literal has been found for non-%s type" t t |> failwith
+        let fw t = failwithf "%s literal has been found for non-%s type" t t
         let inline oneWay kind (value: ^v) (toDefault: ^t -> DefaultableKind) =
             match s with
             | x when x = kind ->
