@@ -26,6 +26,8 @@ It's still in VERY early stage of development, so only VERY basic features are b
    - [ ] `allOf` support
    - [ ] `discriminator` support
    - [x] `not` *won't be supported*
+   - [ ] validation support (#33)
+   - [ ] NodaTime support opt-in (#32)
 - [x] Multiple responses from one endpoint
 - [ ] Creating endpoints with support for bindings
    - [x] path
