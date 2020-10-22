@@ -1,0 +1,30 @@
+openapi: "3.0.0"
+info:
+  title: Spec for date-time format noda time handling testing
+  version: 1
+paths:
+  /id:
+    post:
+      operationId: postId
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/bodyModel'
+      responses:
+        '200':
+          description: returns input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/bodyModel'
+components:
+  schemas:
+    bodyModel:
+      type: object
+      properties:
+        dateTime:
+          type: string
+          format: date-time
+      required:
+        - dateTime

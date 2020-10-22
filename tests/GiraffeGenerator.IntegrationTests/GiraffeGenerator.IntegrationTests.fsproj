@@ -23,16 +23,47 @@
       <OpenApiUseNodaTime>true</OpenApiUseNodaTime>
       <OpenApiSpecFile>specs/specGeneralForNodaTime.yaml</OpenApiSpecFile>
     </Compile>
+    <Compile Include="SpecForNodaTimeDateTimeInstantFormatHandling.fs">
+      <OpenApiModuleName>SpecForNodaTimeDateTimeInstantFormatHandling</OpenApiModuleName>
+      <OpenApiUseNodaTime>true</OpenApiUseNodaTime>
+      <OpenApiMapDateTimeInto>instant</OpenApiMapDateTimeInto>
+      <OpenApiSpecFile>specs/specForNodaTimeDateTimeFormatHandling.yaml</OpenApiSpecFile>
+    </Compile>
+    <Compile Include="SpecForNodaTimeDateTimeLocalDateTimeFormatHandling.fs">
+      <OpenApiModuleName>SpecForNodaTimeDateTimeLocalDateTimeFormatHandling</OpenApiModuleName>
+      <OpenApiUseNodaTime>true</OpenApiUseNodaTime>
+      <OpenApiMapDateTimeInto>local-date-time</OpenApiMapDateTimeInto>
+      <OpenApiSpecFile>specs/specForNodaTimeDateTimeFormatHandling.yaml</OpenApiSpecFile>
+    </Compile>
+    <Compile Include="SpecForNodaTimeDateTimeOffsetDateTimeFormatHandling.fs">
+      <OpenApiModuleName>SpecForNodaTimeDateTimeOffsetDateTimeFormatHandling</OpenApiModuleName>
+      <OpenApiUseNodaTime>true</OpenApiUseNodaTime>
+      <OpenApiMapDateTimeInto>offset-date-time</OpenApiMapDateTimeInto>
+      <OpenApiSpecFile>specs/specForNodaTimeDateTimeFormatHandling.yaml</OpenApiSpecFile>
+    </Compile>
+    <Compile Include="SpecForNodaTimeDateTimeZonedDateTimeFormatHandling.fs">
+      <OpenApiModuleName>SpecForNodaTimeDateTimeZonedDateTimeFormatHandling</OpenApiModuleName>
+      <OpenApiUseNodaTime>true</OpenApiUseNodaTime>
+      <OpenApiMapDateTimeInto>zoned-date-time</OpenApiMapDateTimeInto>
+      <OpenApiSpecFile>specs/specForNodaTimeDateTimeFormatHandling.yaml</OpenApiSpecFile>
+    </Compile>
+    <Compile Include="SpecForNodaTimeDateTimeDefaultFormatHandling.fs">
+      <OpenApiModuleName>SpecForNodaTimeDateTimeDefaultFormatHandling</OpenApiModuleName>
+      <OpenApiUseNodaTime>true</OpenApiUseNodaTime>
+      <OpenApiSpecFile>specs/specForNodaTimeDateTimeFormatHandling.yaml</OpenApiSpecFile>
+    </Compile>
     <None Include="NuGet.Config" />
     <Compile Include="SpecSimpleTests.fs" />
     <Compile Include="SpecWithSchemasTests.fs" />
     <Compile Include="SpecWithArgumentsTests.fs" />
     <Compile Include="SpecWithParametersAndRequestBodyTests.fs" />
     <Compile Include="SpecGeneralForNodaTimeTests.fs" />
+    <Compile Include="SpecForNodaTimeDateTimeInstantFormatHandlingTests.fs" />
     <Content Include="RemoveGenerated.ps1" />
     <Content Include="specs\specWithSchemas.yaml" />
     <Content Include="specs\specWithParametersAndRequestBodySchemas.yaml" />
     <Content Include="specs\specGeneralForNodaTime.yaml" />
+    <Content Include="specs\specForNodaTimeDateTimeFormatHandling.yaml" />
     <Content Include="specs\specWithArguments.yaml" />
     <Content Include="specs\specSimple.yaml" />
   </ItemGroup>
