@@ -15,13 +15,17 @@ let createMethod (method: PathMethodCall) =
     |> identExpr
     >=> service method.Name
 
+type PayloadLocation =
+    | Body of MediaType
+    | NonBody of PayloadNonBodyLocation
+
 let private createRouteHandler path method =
     let verb =
         method.Method.ToUpperInvariant() |> identExpr
 
     let serviceCall = service method.Name
     let hasPathParameters =
-        method.Parameters
+        method.OtherParameters
         |> Option.map (Map.containsKey Path)
         |> Option.defaultValue false
     if hasPathParameters then verb >=> routeBind path serviceCall else verb >=> route path >=> serviceCall
@@ -54,9 +58,6 @@ let createRoute (path: ParsedPath) =
         paren routeExpr
 
 let requestCommonInputTypeName (method: PathMethodCall) = method.Name + method.Method + "Input"
-let sourceSorting (source: PayloadLocation) = source = Path, source = Query, source = Body(Json), source = Body(Form)
-let isBody = function | Body _ -> true | _ -> false
-let isNotBody = isBody >> not
 let isNotPath = (<>) Path
 
 let extractParameterObjectNamesWithLocations (parameterLocation, (parameterSchema: TypeSchema)) =
@@ -66,7 +67,7 @@ let extractParameterObjectNamesWithLocations (parameterLocation, (parameterSchem
         | _ -> seq { parameterSchema.Name }
     names |> Seq.map (fun name -> name, parameterLocation)
 
-let getUniqueParameterNameForLocationOrFail ((parameterName, parameterLocations): string * (PayloadLocation[])) =
+let getUniqueParameterNameForLocationOrFail ((parameterName, parameterLocations): string * (PayloadNonBodyLocation[])) =
     if parameterLocations.Length = 1 then
         seq { parameterName, (parameterLocations.[0], parameterName) }
     else
@@ -78,12 +79,11 @@ let getUniqueParameterNameForLocationOrFail ((parameterName, parameterLocations)
 
 type CombinedRecordPropertyNamesMapping =
     { CombinedRecordPropertyName: string
-      OriginalLocation: PayloadLocation
+      OriginalLocation: PayloadNonBodyLocation
       OriginalName: string }
 let getCombinedRecordPropertyNamesFrom parameters =
     parameters
     |> Map.toSeq
-    |> Seq.filter (fst >> isNotBody)
     |> Seq.collect extractParameterObjectNamesWithLocations
     |> Seq.groupBy fst
     |> Seq.map (fun (parameterName, group) -> parameterName, group |> Seq.map (fun (_, parameterLocation) -> parameterLocation) |> Seq.toArray)
@@ -115,7 +115,6 @@ let generateCombinedRecordTypeDefnFor parameters name =
                 Properties =
                     parameters
                     |> Map.toSeq
-                    |> Seq.filter (fst >> isNotBody)
                     |> Seq.collect
                         (
                             fun (location, schema) ->
@@ -130,19 +129,20 @@ let generateCombinedRecordTypeDefnFor parameters name =
             } |> TypeKind.Object
     }
     
-let hasMultipleNonBodyParameters parameters =
-    parameters
-    |> Map.toSeq
-    |> Seq.map fst
-    |> Seq.filter isNotBody
-    |> Seq.length > 1
+let hasMultipleNonBodyParameters method =
+    method.OtherParameters
+    |> Option.map Map.count
+    |> Option.map (fun cnt -> cnt > 1)
+    |> Option.defaultValue false
 
 let hasErrorsPossible api =
     seq {
         for path in api.Paths do
             for method in path.Methods do
-                if method.Parameters.IsSome then
-                    method.Parameters.Value
+                if method.BodyParameters.IsSome then
+                    true
+                elif method.OtherParameters.IsSome then
+                    method.OtherParameters.Value
                     |> Map.toSeq
                     |> Seq.exists (fst >> isNotPath)
     } |> Seq.contains true
@@ -206,11 +206,26 @@ let giraffeAst (api: Api) =
           let temporarySchemasForBindingBeforeDefaultsAppliance =
               [ for path in api.Paths do
                   for method in path.Methods do
-                      if method.Parameters.IsSome then
-                        for KeyValue(source, schema) in method.Parameters.Value do
-                            if source = Query || isBody source then // non-query and non-body bindings don't support default values
-                                let generatedTypes = generateOptionalType schema.Kind schema.DefaultValue (Some schema.Name)
-                                yield! generatedTypes ]
+                      // non-query and non-body bindings don't support default values
+                      // because path must be required by spec
+                      // and there are no other sources of binding supported
+                      let query =
+                          method.OtherParameters
+                          |> Option.bind (Map.tryFind Query)
+                      let bodies =
+                          method.BodyParameters
+                          |> Option.map (Seq.map snd)
+                          
+                      let schemasEligibleForDefaulting =
+                          Option.map2 (fun query bodies -> seq { yield query; yield! bodies }) query bodies
+                          |> Option.orElse bodies
+                          |> Option.orElse (query |> Option.map (fun q -> seq{q}))
+                      
+                      if schemasEligibleForDefaulting.IsSome then
+                          for schema in schemasEligibleForDefaulting.Value do
+                              let generatedTypes = generateOptionalType schema.Kind schema.DefaultValue (Some schema.Name)
+                              yield! generatedTypes ]
+
           let temporarySchemasForBindingBeforeDefaultsApplianceMap =
               seq {
                   for v in temporarySchemasForBindingBeforeDefaultsAppliance do
@@ -228,13 +243,21 @@ let giraffeAst (api: Api) =
                 yield! api.Schemas
                 yield! temporarySchemasForBindingBeforeDefaultsAppliance |> Seq.map ^ fun v -> { Kind = v.Generated; Name = v.GeneratedName; Docs = None; DefaultValue = None }
                 for path in api.Paths do
-                  for method in path.Methods do
-                      if method.Parameters.IsSome then
-                        for KeyValue(_, schema) in method.Parameters.Value do
-                            schema
-                        if hasMultipleNonBodyParameters method.Parameters.Value then
+                    for method in path.Methods do
+                        
+                        let allParameterSchemas =
+                            let body = method.BodyParameters |> Option.map (Seq.map snd)
+                            let nonBody = method.OtherParameters |> Option.map (Map.toSeq >> Seq.map snd)
+                            Option.map2 Seq.append nonBody body
+                            |> Option.orElse body
+                            |> Option.orElse nonBody  
+                        if allParameterSchemas.IsSome then
+                            for schema in allParameterSchemas.Value do
+                                schema
+                                
+                        if hasMultipleNonBodyParameters method then
                             let name = requestCommonInputTypeName method
-                            generateCombinedRecordTypeDefnFor method.Parameters.Value name]
+                            generateCombinedRecordTypeDefnFor method.OtherParameters.Value name]
 
           if not allSchemas.IsEmpty then
               yield! [
@@ -297,8 +320,8 @@ let giraffeAst (api: Api) =
                       // case 2.:
                       // get Option<TypeSchema> for the only parameters source
                       let maybeSingleNonBodyParameterOpenApi =
-                          method.Parameters
-                          |> Option.bind (fun p -> p |> Map.toSeq |> Seq.filter (fst >> isNotBody) |> Seq.tryExactlyOne)
+                          method.OtherParameters
+                          |> Option.bind (fun p -> p |> Map.toSeq |> Seq.tryExactlyOne)
                       let maybeSingleNonBodyParameter =
                           maybeSingleNonBodyParameterOpenApi
                           |> Option.map snd
@@ -307,8 +330,8 @@ let giraffeAst (api: Api) =
                       // cases 4. and 5. - get Option<TypeSchema> for body parameters record
                       // TODO: Body binding into DU case per content-type instead of record for some of content-types
                       let maybeBodyOpenApi =
-                          method.Parameters
-                          |> Option.bind (fun p -> p |> Map.toSeq |> Seq.filter (fst >> isBody) |> Seq.tryExactlyOne)
+                          method.BodyParameters
+                          |> Option.bind Seq.tryExactlyOne
                       let maybeBody =
                           maybeBodyOpenApi
                           |> Option.map snd
@@ -316,7 +339,7 @@ let giraffeAst (api: Api) =
                       
                       // case A. - get Option<TypeSchema> for path parameters record
                       let maybePathOpenApi =
-                          method.Parameters
+                          method.OtherParameters
                           |> Option.bind (Map.tryFind Path)
                       let maybePath = maybePathOpenApi |> Option.map (fun x -> x.Kind |> extractResponseSynType (Some x.Name))
                           
@@ -433,7 +456,7 @@ let giraffeAst (api: Api) =
                           let defaultImplementationEmitter implDefn (maybePath: TypeSchema option) =
                                 // get query input type if present
                                 let maybeQuery =
-                                    method.Parameters
+                                    method.OtherParameters
                                     |> Option.bind (Map.tryFind Query)
                                 // get QueryInputForBinding if present
                                 let maybeQueryBindingType =
@@ -502,7 +525,7 @@ let giraffeAst (api: Api) =
                                         (
                                             fun (combinedRecordSynType, combinedRecordSchema) ->
                                                 let combinedRecordPropertyToOriginalValue =
-                                                    getCombinedRecordPropertyNamesFrom method.Parameters.Value
+                                                    getCombinedRecordPropertyNamesFrom method.OtherParameters.Value
                                                     |> Seq.map (fun r -> r.CombinedRecordPropertyName, (r.OriginalLocation, r.OriginalName))
                                                     |> Map
                                                 // do nothing if there is only one non-body arg
@@ -525,18 +548,15 @@ let giraffeAst (api: Api) =
                                 // generate binding itself
                                 let maybeBindBody =
                                     maybeBodyBindingType
-                                    |> Option.map ^ fun (bodyInputForBindingMapping, (location, bodySchema)) ->
+                                    |> Option.map ^ fun (bodyInputForBindingMapping, (contentType, bodySchema)) ->
                                         letBangExpr bodyBinding
                                             (
                                                 // decide on which binding method to call based on location content-type (not the header value) 
                                                 let expr =
-                                                    match location with
-                                                    | Body contentType ->
-                                                        match contentType with
-                                                        | MediaType.Form -> "ctx.BindFormAsync"
-                                                        | MediaType.Json -> "ctx.BindJsonAsync"
-                                                        | v -> failwithf "Content type %A is not supported" v 
-                                                    | _ -> failwith "Body should be located in body, you know"
+                                                    match contentType with
+                                                    | MediaType.Form -> "ctx.BindFormAsync"
+                                                    | MediaType.Json -> "ctx.BindJsonAsync"
+                                                    | v -> failwithf "Content type %A is not supported" v
                                                     |> longIdentExpr
                                                 // add type parameter to the chosen method
                                                 let typeApp = typeApp expr [bodyInputForBindingMapping |> Option.map (fun v -> v.GeneratedName) |> Option.defaultValue bodySchema.Name |> synType]
@@ -613,8 +633,8 @@ let giraffeAst (api: Api) =
                                             // CodeGenErrorsDU.tryExtractError = function | Ok _ -> None | Error e -> Some e
                                             let allRawBindings =
                                                 nonCombinedBodyArgs
-                                                |> Seq.append nonCombinedNonBodyArgs
                                                 |> Seq.map snd
+                                                |> Seq.append (nonCombinedNonBodyArgs |> Seq.map snd)
                                                 |> Seq.map ^ fun result -> app (identExpr CodeGenErrorsDU.tryExtractErrorName) (identExpr result)
                                                 |> Seq.toList
                                             // if there is only one raw binding, no error may be muted

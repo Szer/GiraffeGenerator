@@ -270,8 +270,7 @@ type Response =
       Kind: TypeKind }
 
 /// Source of binding
-type PayloadLocation =
-    | Body of MediaType
+type PayloadNonBodyLocation =
     // TODO: Cookie
     | Path
     | Query
@@ -288,7 +287,8 @@ type PathMethodCall =
     { Method: string
       Name: string
       Responses: Response list
-      Parameters: Map<PayloadLocation, TypeSchema> option
+      BodyParameters: (MediaType*TypeSchema) array option
+      OtherParameters: Map<PayloadNonBodyLocation, TypeSchema> option
       Docs: Docs option }
 
 /// Representation of OpenApi path with methods attach
@@ -363,16 +363,18 @@ let parse (doc: OpenApiDocument): Api =
                         Option.map2 Array.append pathParameters operationParameters
                         |> Option.orElse operationParameters
                         |> Option.orElse pathParameters
-                    let parameters =
+                    let nonBodyParameters =
                         allParameters
                         |> Option.filter (fun x -> x.Length > 0)
                         |> Option.map
                             (fun parameters ->
                                 parameters
-                                |> Seq.groupBy (fun x -> Option.ofNullable x.In |> Option.defaultValue ParameterLocation.Query |> PayloadLocation.FromParameterLocation)
+                                |> Seq.groupBy (fun x -> Option.ofNullable x.In |> Option.defaultValue ParameterLocation.Query |> PayloadNonBodyLocation.FromParameterLocation)
                                 |> Seq.map (fun (location, parameters) ->
                                     location, TypeSchema.Parse(methodName + opName + location.ToString(), parameters))
+                                |> Map
                             )
+
                     let bodyParameters =
                         op.RequestBody
                         |> Option.ofObj
@@ -386,14 +388,11 @@ let parse (doc: OpenApiDocument): Api =
                                                let mediaType = parseMediaType mt
                                                let name = opName + methodName + "Body" + mediaType.ToString()
                                                let schema = TypeSchema.Parse(name, body.Schema)
-                                               Body mediaType, schema
+                                               mediaType, schema
                                         )
+                                    |> Seq.toArray
                             )
-                    let allParameters =
-                        Option.map2 Seq.append parameters bodyParameters
-                        |> Option.orElse parameters
-                        |> Option.orElse bodyParameters
-                        |> Option.map Map
+                        
                         
                     let responses =
                         [ for KeyValue(code, response) in op.Responses do
@@ -413,7 +412,8 @@ let parse (doc: OpenApiDocument): Api =
                     { Method = methodName
                       Name = opName
                       Responses = responses
-                      Parameters = allParameters
+                      BodyParameters = bodyParameters
+                      OtherParameters = nonBodyParameters
                       Docs = Docs.Create(op.Description, op.Summary, null) } ]
                 
             yield { Route = route
