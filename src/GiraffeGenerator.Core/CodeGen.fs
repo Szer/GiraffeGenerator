@@ -212,8 +212,11 @@ let giraffeAst (api: Api) =
                                 let generatedTypes = generateOptionalType schema.Kind schema.DefaultValue (Some schema.Name)
                                 yield! generatedTypes ]
           let temporarySchemasForBindingBeforeDefaultsApplianceMap =
-              temporarySchemasForBindingBeforeDefaultsAppliance
-              |> Seq.collect (fun v -> [ SourceType v.OriginalName, v; GeneratedType v.GeneratedName, v ])
+              seq {
+                  for v in temporarySchemasForBindingBeforeDefaultsAppliance do
+                      SourceType v.OriginalName, v
+                      GeneratedType v.GeneratedName, v
+              }
               |> Map
 
           let errorsPossible = hasErrorsPossible api
