@@ -378,20 +378,14 @@ let parse (doc: OpenApiDocument): Api =
                     let bodyParameters =
                         op.RequestBody
                         |> Option.ofObj
-                        |> Option.map
-                            (
-                                fun rb ->
-                                    rb.Content
-                                    |> Seq.map
-                                        (
-                                           fun (KeyValue(mt, body)) ->
-                                               let mediaType = parseMediaType mt
-                                               let name = opName + methodName + "Body" + mediaType.ToString()
-                                               let schema = TypeSchema.Parse(name, body.Schema)
-                                               mediaType, schema
-                                        )
-                                    |> Seq.toArray
-                            )
+                        |> Option.map (fun rb ->
+                            rb.Content
+                            |> Seq.map (fun (KeyValue(mt, body)) ->
+                                let mediaType = parseMediaType mt
+                                let name = opName + methodName + "Body" + mediaType.ToString()
+                                let schema = TypeSchema.Parse(name, body.Schema)
+                                mediaType, schema)
+                            |> Seq.toArray)
                         
                         
                     let responses =
