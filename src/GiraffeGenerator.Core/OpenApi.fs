@@ -271,10 +271,10 @@ type Response =
 
 /// Source of binding
 type PayloadNonBodyLocation =
-    // TODO: Cookie
+    // TODO: Cookie (#35)
     | Path
     | Query
-    // TODO Header
+    // TODO Header (#35)
     with
         static member FromParameterLocation =
             function

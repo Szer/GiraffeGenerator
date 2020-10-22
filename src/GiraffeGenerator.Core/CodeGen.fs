@@ -328,7 +328,7 @@ let giraffeAst (api: Api) =
                           |> Option.map (fun x -> x.Kind |> extractResponseSynType (Some x.Name))
                           
                       // cases 4. and 5. - get Option<TypeSchema> for body parameters record
-                      // TODO: Body binding into DU case per content-type instead of record for some of content-types
+                      // TODO: Body binding into DU case per content-type instead of record for some of content-types (#36)
                       let maybeBodyOpenApi =
                           method.BodyParameters
                           |> Option.bind Seq.tryExactlyOne
