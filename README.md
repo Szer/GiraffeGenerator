@@ -27,10 +27,14 @@ It's still in VERY early stage of development, so only VERY basic features are b
    - [ ] `discriminator` support
    - [x] `not` *won't be supported*
 - [x] Multiple responses from one endpoint
-- [ ] Creating endpoints with path/query/body bindings
+- [ ] Creating endpoints with support for bindings
    - [x] path
    - [x] query
-   - [ ] body
+   - [x] body
+   - [ ] header (#35)
+   - [ ] cookie (#35)
+   - [ ] content-type negotiated body (#36)
+   - [x] binding error handling
 - [x] Add XML comments on top of endpoint from OpenAPI descriptions
 - [ ] Support authentication (best efforts)
 - [ ] Support JSON/XML (de-)serialization
