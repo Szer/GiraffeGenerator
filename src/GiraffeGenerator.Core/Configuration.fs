@@ -11,5 +11,6 @@ type Configuration =
     {
         UseNodaTime: bool
         MapDateTimeInto: DateTimeGeneratedType
+        ModuleName: string option
     }
 

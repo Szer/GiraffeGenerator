@@ -197,9 +197,11 @@ let generateInputsCombination combinedRecordPropertyToOriginalValue synt (schema
 let giraffeAst (config: Configuration) (api: Api) =
     let extractResponseSynType = extractResponseSynType config
     
+    let moduleName = config.ModuleName |> Option.defaultValue api.Name
+    
     moduleDecl
         (xml api.Docs)
-        api.Name
+        moduleName
         [ openDecl "FSharp.Control.Tasks.V2.ContextInsensitive"
           openDecl "Giraffe"
           openDecl "System.Threading.Tasks"

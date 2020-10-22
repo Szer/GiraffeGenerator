@@ -55,6 +55,7 @@ let main argv =
             UseNodaTime = useNodaTime
             // the non-noda behavior is DateTimeOffset, so take the most similar as default
             MapDateTimeInto = dateTimeType |> Option.defaultValue DateTimeGeneratedType.OffsetDateTime
+            ModuleName = getOptionalArg argv "--module-name"
         }
     
     let doc, errors = read inputFile
