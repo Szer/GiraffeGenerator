@@ -626,9 +626,9 @@ let giraffeAst (api: Api) =
                                     |> Option.map ^ letExpr finalArgsBinding []
                                     // and combine errors preserving the signature
                                     // Errors combination is required because all result combinations use nested Result.bind without error handling
-                                    |> Option.map ^ fun f continuation ->
-                                        f
-                                        ^
+                                    |> Option.map ^ fun finalArgsBindingLetExprWithoutContinuation continuation ->
+                                        finalArgsBindingLetExprWithoutContinuation
+                                        ^ // define the continuation of the binding and chain it before the continuation passed
                                             // try get raw binding errors (combined bindings may have errors muted, so use the raw ones)
                                             // CodeGenErrorsDU.tryExtractError = function | Ok _ -> None | Error e -> Some e
                                             let allRawBindings =
