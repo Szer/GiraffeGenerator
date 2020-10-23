@@ -21,3 +21,7 @@ module Result =
     let mapExpr = longIdentExpr "Result.map" |> app
     let bindExpr = longIdentExpr "Result.bind" |> app
     let mapErrorExpr = longIdentExpr "Result.mapError" |> app
+
+module String =
+    let concatExprComplex delimiterExpr = app (longIdentExpr "String.concat") delimiterExpr
+    let concatExpr delimiter = concatExprComplex (strExpr delimiter)

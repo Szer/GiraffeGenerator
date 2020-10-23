@@ -1,5 +1,6 @@
 ﻿module CodeGenErrorsDU
 open AST
+open ASTExt
 open FSharp.Compiler.SyntaxTree
 open OpenApi
     
@@ -99,7 +100,7 @@ let private innerErrToStringDecl =
             sprintfExpr "%sMultiple errors:\\n%s"
             ^ [identExpr sepVar
                app
-                (app (longIdentExpr "String.concat") (strExpr "\\n"))
+                (String.concatExpr "\\n")
                 (
                     app // Seq.map (recCall (level + 1))
                         (app (longIdentExpr "Seq.map") (paren(app (identExpr innerErrToStringName) (paren(nextLevel)))))
@@ -134,7 +135,7 @@ let private outerErrToStringDecl =
              sprintfExpr "%sMultiple binding errors:\\n%s"
              ^ [identExpr sepVar
                 app
-                 (app (longIdentExpr "String.concat") (strExpr "\\n\\n"))
+                 (String.concatExpr "\\n\\n")
                  (
                      app // Seq.map (recCall (level + 1))
                          (app (longIdentExpr "Seq.map") (paren(app (identExpr outerErrToStringName) (paren(nextLevel)))))
