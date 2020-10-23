@@ -28,7 +28,7 @@ It's still in early stage of development, so mostly basic features are being sup
    - [ ] `discriminator` support
    - [x] `not` *won't be supported*
    - [ ] validation support (#33)
-   - [ ] NodaTime support opt-in (#32)
+   - [x] NodaTime support opt-in (#32)
 - [x] Multiple responses from one endpoint
 - [ ] Creating endpoints with support for bindings
    - [x] path
@@ -58,6 +58,62 @@ It's still in early stage of development, so mostly basic features are being sup
 - Implement interface defined in this file and register your implementation in AspNetCore DI
 - May require serializer configuration to support mapping of absent and null values from/to Optionon<_>
 - May require serializer configuration to throw on absent required properties
+
+## Codegen configuration
+
+All configuration is done by adding more child tags to Compile object.
+There are two types of configuration: parameterless (flags) and parameterfull (parameters).
+
+`flag` is specified like `<OpenApiFlag>true</OpenApiFlag>`: absense of tag or any content except for `true` is treated as `false`
+
+`parameter` is passed as tag content like `<OpenApiValue>your value</OpenApiValue>`
+
+Example of both:
+```
+    <Compile Include="Generated.fs">
+      <OpenApiSpecFile>spec.yaml</OpenApiSpecFile>
+      <OpenApiSomeFlag>true</OpenApiSomeFlag>
+    </Compile>
+```
+
+### Generated module name customization
+Defined as parameter `OpenApiModuleName`
+
+### NodaTime support
+Enabled by `OpenApiUseNodaTime` flag.
+
+Has optional parameter `OpenApiMapDateTimeInto` which controls generated type for `date-time` OpenAPI string format.
+Has four possible values:
+- `instant`
+- `local-date-time`
+- `offset-date-time` (default)
+- `zoned-date-time`
+
+Adds support for the following custom string formats:
+| Format           | NodaTime type                          | Supports default values (format) |
+| ---------------- | -------------------------------------- | -------------------------------- |
+| local-date       | LocalDate                              | [x] `uuuu'-'MM'-'dd (c)`
+| date             | LocalDate                              | [x] (as above)
+| date-time        | Differs (see `OpenApiMapDateTimeInto`) | [~] By configured format
+| instant          | Instant                                | [x] `uuuu'-'MM'-'dd'T'HH':'mm':'ss.FFFFFFFFF'Z'` 
+| local-time       | LocalTime                              | [x] `HH':'mm':'ss.FFFFFFFFF`
+| time             | LocalTime                              | [x] (as above)
+| local-date-time  | LocalDateTime                          | [x] `uuuu'-'MM'-'dd'T'HH':'mm':'ss.FFFFFFFFF (c)`
+| offset-date-time | OffsetDateTime                         | [x] `uuuu'-'MM'-'dd'T'HH':'mm':'ss;FFFFFFFFFo<Z+HH:mm> (c)`
+| zoned-date-time  | ZonedDateTime                          | [ ] No
+| offset           | Offset                                 | [x] general pattern, e.g. +05 or -03:30
+| time-offset      | Offset                                 | [x] (as above)
+| duration         | Duration                               | [x] -H:mm:ss.FFFFFFFFF
+| period           | Interval                               | [x] ISO8601 Duration (round-trip)
+| time-zone        | DateTimeZone                           | [x] IANA Tzdb identifier
+| date-time-zone   | DateTimeZone                           | [x] (as above)
+
+Usage requires installation of NodaTime 3+ nuget at least.
+For some content types of bodies containing NodaTime types [additional packages may be needed](https://nodatime.org/3.0.x/userguide/serialization).
+
+Note that zoned-date-time cannot be passed in query string or path parameters by default.
+Also note that (de)serialization duration format differs for query string binding and
+Json.NET serialization by default. See [this test](https://github.com/bessgeor/GiraffeGenerator/blob/feature/noda-time-support__%2332/tests/GiraffeGenerator.IntegrationTests/SpecGeneralForNodaTimeTests.fs#L115) for more details.
 
 ## How it works internally
 
