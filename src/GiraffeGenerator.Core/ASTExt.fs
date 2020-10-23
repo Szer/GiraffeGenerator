@@ -10,8 +10,8 @@ module Seq =
     let mapExpr = longIdentExpr "Seq.map" |> app
     let filterExpr = longIdentExpr "Seq.filter" |> app
     let reduceExpr reducer initial = app (app (longIdentExpr "Seq.reduce") reducer) initial
+
 module Option =
-    
     let bindExpr = longIdentExpr "Option.bind" |> app
     let mapExpr = longIdentExpr "Option.map" |> app
     let defaultValueExpr = longIdentExpr "Option.defaultValue" |> app
