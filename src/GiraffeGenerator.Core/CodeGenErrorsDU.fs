@@ -138,7 +138,7 @@ let private outerErrToStringDecl =
                  (String.concatExpr "\\n\\n")
                  (
                      app // Seq.map (recCall (level + 1))
-                         (app (longIdentExpr "Seq.map") (paren(app (identExpr outerErrToStringName) (paren(nextLevel)))))
+                         (Seq.mapExpr (paren(app (identExpr outerErrToStringName) (paren(nextLevel)))))
                          (identExpr err)
                      |> paren
                  )
