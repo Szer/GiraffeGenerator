@@ -21,9 +21,9 @@
     let inline private checkMinBoundary value = checkBoundary (>) (sprintf "should be greater than %s") value
     let inline private checkMaxBoundary value = checkBoundary (<) (sprintf "should be lesser than %s") value
     
-    let inline private checkMultiplyOf value divisor =
+    let inline private checkMultipleOf value divisor =
         if value % divisor = LanguagePrimitives.GenericZero then None
-        else sprintf "should be a multiply of %d" divisor |> Some
+        else sprintf "should be a multiple of %d" divisor |> Some
     
     // numerics or string validation
     
@@ -55,7 +55,38 @@
             |> String.concat "; "
         if errs.Length > 0 then
             failwithf "%s %A is invalid: %s" name value errs       
-        
+    
+    // utilities for validation rules validation
+    
+    let inline private failIfMultipleOfInvalidOrReturnIt (schema: OpenApiSchema) converter =
+        let multipleOf =
+            schema.MultipleOf
+            |> Option.ofNullable
+            |> Option.map converter
+            |> Option.filter ((<>) LanguagePrimitives.GenericOne)
+        do
+            multipleOf
+            |> Option.filter ((=) LanguagePrimitives.GenericZero)
+            |> Option.map (failwithf "multipleOf must not be equal to %d")
+            |> Option.defaultValue ()
+        multipleOf
+    
+    let validateLengths min max =
+        do
+            min
+            |> Option.filter ((>) 0)
+            |> Option.map (failwithf "minItems must be greater than or equal to 0. %d is not")
+            |> Option.defaultValue ()
+        do
+            max
+            |> Option.filter ((>) 0)
+            |> Option.map (failwithf "maxItems must be greater than or equal to 0. %d is not")
+            |> Option.defaultValue ()
+        do
+            Option.map2 (fun min max -> min, max) min max
+            |> Option.filter (fun (min, max) -> min > max)
+            |> Option.map (fun (min, max) -> failwithf "maxItems (%d) should be greater than minItems (%d)" max min)
+            |> Option.defaultValue ()
     
     // and here come the validation rule models themselves
     
@@ -70,17 +101,15 @@
         member s.FailIfInvalid (name, value) =
             failIfInvalidImpl name value
                 [
-                    s.MultipleOf |> Option.bind (checkMultiplyOf value)
+                    s.MultipleOf |> Option.bind (checkMultipleOf value)
                     s.Minimum |> Option.bind (checkMinBoundary value)
                     s.Maximum |> Option.bind (checkMaxBoundary value)
                     s.EnumValues |> Option.bind (checkEnum value)
                 ]         
         static member TryParse (schema: OpenApiSchema): IntValidation option =
+            let multipleOf = failIfMultipleOfInvalidOrReturnIt schema int
             {
-                MultipleOf =
-                    schema.MultipleOf
-                    |> Option.ofNullable
-                    |> Option.map int
+                MultipleOf = multipleOf
                 Minimum =
                     schema.Minimum
                     |> Option.ofNullable
@@ -113,17 +142,15 @@
         member s.FailIfInvalid (name, value) =
             failIfInvalidImpl name value
                 [
-                    s.MultipleOf |> Option.bind (checkMultiplyOf value)
+                    s.MultipleOf |> Option.bind (checkMultipleOf value)
                     s.Minimum |> Option.bind (checkMinBoundary value)
                     s.Maximum |> Option.bind (checkMaxBoundary value)
                     s.EnumValues |> Option.bind (checkEnum value)
                 ]
         static member TryParse (schema: OpenApiSchema): LongValidation option =
+            let multipleOf = failIfMultipleOfInvalidOrReturnIt schema int64
             {
-                MultipleOf =
-                    schema.MultipleOf
-                    |> Option.ofNullable
-                    |> Option.map int64
+                MultipleOf = multipleOf
                 Minimum =
                     schema.Minimum
                     |> Option.ofNullable
@@ -203,10 +230,23 @@
                     |> Option.map ^ sprintf "should match pattern /%s/"
                 ]
         static member TryParse (schema: OpenApiSchema): StringValidation option =
+            let minLength = schema.MinLength |> Option.ofNullable
+            let maxLength = schema.MaxLength |> Option.ofNullable
+            let pattern = schema.Pattern |> Option.ofObj
+            do validateLengths minLength maxLength
+            do
+                pattern
+                |> Option.filter (fun pattern ->
+                    try
+                        do Regex(pattern, RegexOptions.ECMAScript) |> ignore
+                        true
+                    with | _ -> false)
+                |> Option.map (failwithf "pattern /%s/ should be a valid ECMA regexp")
+                |> Option.defaultValue ()
             {
-                MinLength = schema.MinLength |> Option.ofNullable
-                MaxLength = schema.MaxLength |> Option.ofNullable
-                Pattern = schema.Pattern |> Option.ofObj
+                MinLength = minLength
+                MaxLength = maxLength
+                Pattern = pattern
                 EnumValues =
                     schema.Enum
                     |> Option.ofObj
@@ -218,7 +258,9 @@
                 
     type ArrayValidation =
         {
+            /// inclusive: https://tools.ietf.org/html/draft-wright-json-schema-validation-00#section-5.11
             MinItems: int option
+            /// inclusive: https://tools.ietf.org/html/draft-wright-json-schema-validation-00#section-5.10
             MaxItems: int option
             UniqueItems: bool
         }
@@ -232,9 +274,12 @@
                         Some "should contain only unique values"
                 ]
         static member TryParse (schema: OpenApiSchema): ArrayValidation option =
+            let minItems = schema.MinItems |> Option.ofNullable
+            let maxItems = schema.MaxItems |> Option.ofNullable
+            do validateLengths minItems maxItems
             {
-                MinItems = schema.MinItems |> Option.ofNullable
-                MaxItems = schema.MaxItems |> Option.ofNullable
+                MinItems = minItems
+                MaxItems = maxItems
                 UniqueItems = schema.UniqueItems |> Option.ofNullable |> Option.defaultValue false
             }
             |> Some
