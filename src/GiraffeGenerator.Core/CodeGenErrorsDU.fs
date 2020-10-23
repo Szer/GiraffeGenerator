@@ -18,7 +18,7 @@ let private errInnerType =
               {
                   CaseName = Some errInnerGiraffeBinding
                   Docs = summary "Giraffe returned a Result.Error from tryBindXXX"
-                  Kind = Prim <| PrimTypeKind.String StringFormat.String
+                  Kind = Prim <| PrimTypeKind.String (StringFormat.String None)
               }
               {
                   CaseName = Some errInnerFormatterBindingExn
@@ -28,7 +28,7 @@ let private errInnerType =
               {
                   CaseName = Some errInnerCombined
                   Docs = summary "Multiple errors occurred in one location"
-                  Kind = TypeKind.Array (DU { Name = errInnerTypeName; Docs = None; Cases = [] }, None)
+                  Kind = TypeKind.Array (DU { Name = errInnerTypeName; Docs = None; Cases = [] }, None, None)
               }
           ]
   }
@@ -61,7 +61,7 @@ let private errOuterType =
               {
                   CaseName = Some errOuterCombined
                   Docs = summary "Multiple locations errors"
-                  Kind = TypeKind.Array (DU { Name = errOuterTypeName; Docs = None; Cases = [] }, None)
+                  Kind = TypeKind.Array (DU { Name = errOuterTypeName; Docs = None; Cases = [] }, None, None)
               }
           ]
   }

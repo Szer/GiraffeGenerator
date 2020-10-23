@@ -36,7 +36,7 @@ module XmlDoc =
 /// matching OpenAPI string IR to SynType
 let strFormatDefaultMatch =
     function
-    | StringFormat.String
+    | StringFormat.String _
     | PasswordString -> stringType
     | Byte -> arrayOf byteType
     | Binary -> arrayOf byteType
@@ -85,9 +85,9 @@ let strFormatMatch format =
 let primTypeMatch =
     function
     | Any -> objType
-    | Int -> intType
-    | PrimTypeKind.Long -> int64Type
-    | PrimTypeKind.Double -> doubleType
+    | Int _ -> intType
+    | PrimTypeKind.Long _ -> int64Type
+    | PrimTypeKind.Double _ -> doubleType
     | Bool -> boolType
     | PrimTypeKind.String strFormat -> strFormatMatch strFormat
 
@@ -95,7 +95,7 @@ let primTypeMatch =
 let rec extractResponseSynType externalName =
     function
     | Prim primType -> primTypeMatch primType
-    | Array (innerType, _) -> arrayOf (extractResponseSynType externalName innerType)
+    | Array (innerType, _, _) -> arrayOf (extractResponseSynType externalName innerType)
     | Option innerType -> optionOf (extractResponseSynType externalName innerType)
     | BuiltIn builtIn -> synType builtIn
     | Object { Name = Some name } -> synType name
@@ -140,7 +140,7 @@ let extractRecords (schemas: TypeSchema list) =
         match kind with
         | Prim primType -> primTypeMatch primType
         | BuiltIn builtIn -> synType builtIn
-        | Array (innerType, _) -> arrayOf (extractSynType (getOwnName innerType (fun () -> name), innerType))
+        | Array (innerType, _, _) -> arrayOf (extractSynType (getOwnName innerType (fun () -> name), innerType))
         | Option innerType -> optionOf (extractSynType (getOwnName innerType (fun () -> name), innerType))
         | Object objectKind ->
             let name = getOwnName kind ^ fun _ -> name
@@ -255,10 +255,10 @@ let rec private generateOptionalTypeInternal kind def nameFromSchema =
         let (hasDef, kind), generated = generateOptionalTypeInternal opt def nameFromSchema
         let kind = if hasDef then kind else opt
         (hasDef, TypeKind.Option kind), generated
-    | TypeKind.Array (item, def) ->
+    | TypeKind.Array (item, def, validation) ->
         let (hasDef, kind), generated = generateOptionalTypeInternal item def nameFromSchema
         let kind = if hasDef then kind else item
-        (hasDef, TypeKind.Array (kind, def)), generated 
+        (hasDef, TypeKind.Array (kind, def, validation)), generated 
     | v ->
       let isDefaultable = Option.isSome def
       let kind = if isDefaultable then TypeKind.Option v else v
@@ -429,7 +429,7 @@ module rec DefaultsGeneration =
                 if hasDefaultProps then
                     true, record
                 else false, indented
-            | TypeKind.Array (item, def) ->
+            | TypeKind.Array (item, def, _) ->
                 let hasDefaults, func = generateBestPossibleFunc item defaultsMap def nameFromSchema
                 if hasDefaults then
                     true, indented ^|> app (longIdentExpr "Array.map") func
