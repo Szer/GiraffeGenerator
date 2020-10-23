@@ -604,6 +604,7 @@ let simpleValueMatching value cases =
     matchExpr value clauses
 let inline (^|>) a b = app (appI (identExpr "op_PipeRight") a) b
 let inline (^>>) a b = paren (app (appI (identExpr "op_ComposeRight") a) b)
+let inline (^=) a b = app (appI (identExpr "op_Equals") a) b
 
 let setStatusCodeExpr code =
     app (identExpr "setStatusCode") (intExpr code)

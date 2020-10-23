@@ -8,6 +8,7 @@ open OpenApi
 let errInnerTypeName = "ArgumentError"
 let errInnerGiraffeBinding = "GiraffeBindingError"
 let errInnerFormatterBindingExn = "FormatterBindingException"
+let errInnerValidationError = "ArgumentValidationError"
 let errInnerCombined = "CombinedArgumentErrors"
 let private summary v = Some { Summary = Some [v]; Example = None; Remarks = None; }
 let private errInnerType =
@@ -25,6 +26,11 @@ let private errInnerType =
                   CaseName = Some errInnerFormatterBindingExn
                   Docs = summary "Exception occurred during IFormatter bind"
                   Kind = BuiltIn "exn"
+              }
+              {
+                  CaseName = Some errInnerValidationError
+                  Docs = summary "Bound argument is not valid"
+                  Kind = TypeKind.Array (BuiltIn "ValidationResult", None, None)
               }
               {
                   CaseName = Some errInnerCombined
@@ -96,6 +102,50 @@ let private innerErrToStringDecl =
     [
         errInnerGiraffeBinding, err, sprintfExpr "%sGiraffe binding error: %s" [identExpr sepVar; identExpr err]
         errInnerFormatterBindingExn, err, longIdentExpr (sprintf "%s.Message" err)
+        errInnerValidationError, err,
+            letExpr "errStrings" []
+                (
+                    Option.ofObjExpr (identExpr err)
+                    ^|> Option.defaultValueExpr (longIdentExpr "Array.empty")
+                    ^|> Array.mapExpr
+                        (
+                            lambda (singleSimplePat "v")
+                                (
+                                    let letPath =
+                                        letExpr "path" []
+                                            (
+                                                Option.ofObjExpr ^ longIdentExpr "v.MemberNames"
+                                                ^|> Option.mapExpr ^ paren (String.concatExpr ".")
+                                            )
+                                    let letError =
+                                        letExpr "error" []
+                                            (
+                                                Option.ofObjExpr ^ longIdentExpr "v.ErrorMessage"
+                                            )
+                                    let error = identExpr "error"
+                                    let path = identExpr "path"
+                                    let body =
+                                        Option.map2Expr (sprintfExpr "%s (at %s)" [] |> paren) error path
+                                        ^|> Option.orElseExpr error
+                                        ^|> Option.orElseExpr path
+                                        ^|> Option.defaultValueExpr (strExpr "unknown validation error")
+                                    letPath ^ letError ^ body
+                                )
+                        )
+                )
+                (
+                    let errStrings = identExpr "errStrings"
+                    ifElseExpr (errStrings ^|> Array.lengthExpr ^= (intExpr 0))
+                        (sprintfExpr "%sUnknown validation error" [identExpr sepVar])
+                        ^ ifElseExpr (errStrings ^|> Array.lengthExpr ^= (intExpr 1))
+                            (errStrings ^|> Array.headExpr ^|> sprintfExpr "%sValidation error: %s" [identExpr sepVar])
+                            ^ letExpr "sepInner" [] (sprintfExpr "\\n%s " [identExpr sepVar])
+                                (
+                                    errStrings
+                                    ^|> String.concatExprComplex (identExpr "sepInner")
+                                    ^|> sprintfExpr "%sValidation errors:%s%s" [identExpr sepVar; identExpr "sepInner"]
+                                )
+                )
         errInnerCombined, err,
             sprintfExpr "%sMultiple errors:\\n%s"
             ^ [identExpr sepVar
