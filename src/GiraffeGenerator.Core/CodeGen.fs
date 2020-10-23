@@ -162,12 +162,12 @@ let rec generateBinds bound leftToBind generateFinal =
     if List.length leftToBind > 0 then
         identExpr bound
         ^|> Result.bindExpr
-            ^ lambda ([simplePat bound] |> simplePats)
+            ^ lambda (singleSimplePat bound)
                 ^ generateBinds leftToBind.Head leftToBind.Tail generateFinal
     else
         identExpr bound
             ^|> Result.mapExpr
-                ^ lambda ([simplePat bound] |> simplePats) ^ generateFinal()
+                ^ lambda (singleSimplePat bound) ^ generateFinal()
 
 /// generates mapping from all non-body parameters to combined record
 /// (combined records are described in module generation)

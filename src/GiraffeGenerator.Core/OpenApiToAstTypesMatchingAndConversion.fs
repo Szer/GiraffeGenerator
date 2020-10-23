@@ -451,7 +451,7 @@ module rec DefaultsGeneration =
     let private generateDefaultMappingFunFromKind defaultsMap kind sourceDef nameFromSchema =
         let param = "src"
         let hasDefaults, recordExpr = generateDefaultMapping defaultsMap kind sourceDef nameFromSchema param
-        hasDefaults, lambda (simplePats [SynSimplePat.Typed(simplePat param, extractResponseSynType (Some nameFromSchema) kind, r)]) recordExpr
+        hasDefaults, lambda (singleTypedPat param <| extractResponseSynType (Some nameFromSchema) kind) recordExpr
 
     let private generateDefaultMappingFunFromMapping defaultsMap sourceDef (mapping: GeneratedOptionalTypeMapping) =
         let param = "src"
@@ -459,7 +459,7 @@ module rec DefaultsGeneration =
         let bindWithTypeAndReturn =
             letExprComplex (SynPat.Typed(SynPat.Named(SynPat.Wild r, ident "v", false, None, r), synType mapping.OriginalName, r))
                 recordExpr (identExpr "v")
-        hasDefaults, lambda (simplePats [SynSimplePat.Typed(simplePat param, synType mapping.GeneratedName, r)]) bindWithTypeAndReturn
+        hasDefaults, lambda (singleTypedPat param <| synType mapping.GeneratedName) bindWithTypeAndReturn
         
     let generateDefaultMappingFunFromSchema defaultsMap mapping (schema: TypeSchema) =
         let hasDefault, fn = generateDefaultMappingFunFromMapping defaultsMap schema.DefaultValue mapping

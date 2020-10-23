@@ -423,6 +423,10 @@ let simplePat name = SynSimplePat.Id(ident name,None,false,false,false,r)
 
 let simplePats pats = SynSimplePats.SimplePats(pats, r)
 
+let singleTypedPat name synType = [SynSimplePat.Typed(simplePat name, synType, r)] |> simplePats 
+
+let singleSimplePat name = simplePats [simplePat name]
+
 let lambda pats body =
     SynExpr.Lambda(false, false, pats, body, r) |> paren
 
