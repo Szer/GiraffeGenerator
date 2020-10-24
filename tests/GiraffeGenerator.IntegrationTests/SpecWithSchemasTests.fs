@@ -1,6 +1,7 @@
 namespace GiraffeGenerator.IntegrationTests
 
 open System.Net
+open System.Threading.Tasks
 open FSharp.Control.Tasks.V2.ContextInsensitive
 open System
 open Giraffe
@@ -17,12 +18,12 @@ type SpecWithSchemasTests() =
     let specWithSchemasService=
         { new SpecwithschemasAPI.Service() with
             
-            member _.ListVersionsv2 = text "123"
+            member _.ListVersionsv2Input _ = Task.FromResult "123"
             
             member _.GetVersionDetailsv2Input ctx = task {
                 return { SpecwithschemasAPI.dataSetList.apis = [||]; total = 123 }
             }
-            member _.PostVersionDetailsv2 = text "345"}
+            member _.PostVersionDetailsv2Input _ = Task.FromResult "345"}
         
     let configureApp (app : IApplicationBuilder) =
         app.UseGiraffe SpecwithschemasAPI.webApp
@@ -51,7 +52,7 @@ type SpecWithSchemasTests() =
     let ``GET / -> OK "123"``() = task {
         let! response = client.GetAsync("/")
         let! text = response.Content.ReadAsStringAsync()
-        Assert.Equal("123",text)
+        Assert.Equal("\"123\"",text)
         Assert.Equal(HttpStatusCode.OK ,response.StatusCode)
     }
     
@@ -67,7 +68,7 @@ type SpecWithSchemasTests() =
     let ``POST /v2 -> OK "345"``() = task {
         let! response = client.PostAsync("/v2", null)
         let! text = response.Content.ReadAsStringAsync()
-        Assert.Equal("345",text)
+        Assert.Equal("\"345\"",text)
         Assert.Equal(HttpStatusCode.OK ,response.StatusCode)
     }
 

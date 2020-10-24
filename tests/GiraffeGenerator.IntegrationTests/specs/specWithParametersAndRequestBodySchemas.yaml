@@ -1,6 +1,7 @@
 openapi: "3.0.0"
 info:
   title: Spec with parameters and request body API
+  version: 1
 paths:
   /id/{param}:
     parameters:
@@ -24,6 +25,7 @@ paths:
               $ref: '#/components/schemas/dataSetListInput'
       responses:
         '200':
+          description: returns all input parameters in one object
           content:
             application/json:
               schema:
