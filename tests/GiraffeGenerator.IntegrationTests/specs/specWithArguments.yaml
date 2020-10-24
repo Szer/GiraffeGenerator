@@ -46,6 +46,123 @@ paths:
             application/json:
               schema:
                 type: string
+  /{dataset}/{version}/only-path-parameters:
+    parameters:
+      - name: dataset
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags:
+        - search
+      summary: >-
+        Used to test path-only parameters case
+      operationId: only-path-parameters
+      parameters:
+        - name: version
+          in: path
+          description: Version of the dataset.
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+  /only-query-parameters:
+    post:
+      tags:
+        - search
+      summary: >-
+        Used to test path-only parameters case
+      operationId: only-query-parameters
+      parameters:
+        - name: dataset
+          schema:
+            type: string
+          in: query
+          required: true
+        - name: version
+          in: query
+          description: Version of the dataset.
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+  /only-form-parameters:
+    post:
+      tags:
+        - search
+      summary: >-
+        Used to test path-only parameters case
+      operationId: only-form-parameters
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                dataset:
+                  type: string
+                version:
+                  description: Version of the dataset.
+                  type: string
+              required:
+                - dataset
+                - version
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+  /only-json-parameters:
+    post:
+      tags:
+        - search
+      summary: >-
+        Used to test json-only parameters case
+      operationId: only-json-parameters
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dataset:
+                  type: string
+                version:
+                  description: Version of the dataset.
+                  type: string
+              required:
+                - dataset
+                - version
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
   /{dataset}/{version}/records:
     post:
       tags:

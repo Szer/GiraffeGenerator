@@ -3,6 +3,7 @@ namespace GiraffeGenerator.IntegrationTests
 open System.Collections.Generic
 open System.Net
 open System.Net.Http
+open System.Text
 open FSharp.Control.Tasks.V2.ContextInsensitive
 open System
 open Giraffe
@@ -37,6 +38,19 @@ type SpecWithArgumentsTests() =
                         Choice1Of2 [| box "good" |]    
                     else
                         Choice2Of2 ()
+                }
+            
+            member _.OnlyPathParametersInput ((args, ctx)) = task {
+                    return [|args.dataset; args.version|]
+                }
+            member _.OnlyQueryParametersInput ((args, ctx)) = task {
+                    return [|args.dataset; args.version|]
+                }
+            member _.OnlyFormParametersInput ((args, ctx)) = task {
+                    return [|args.dataset; args.version|]
+                }
+            member _.OnlyJsonParametersInput ((args, ctx)) = task {
+                    return [|args.dataset; args.version|]
                 }
             }
         
@@ -110,6 +124,47 @@ type SpecWithArgumentsTests() =
         let! response = client.PostAsync("/abc/v3/records", content)
         let! text = response.Content.ReadAsStringAsync()
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode)
+    }
+
+    [<Fact>]
+    let ``POST /foo/v2/only-path-parameters -> OK ["foo", "v2"]``() = task {
+        let! response = client.PostAsync("/foo/v2/only-path-parameters", null)
+        let! text = response.Content.ReadAsStringAsync()
+        Assert.Equal("[\"foo\",\"v2\"]",text)
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode)
+    }
+
+    [<Fact>]
+    let ``POST /only-query-parameters?dataset=foo&version=v2 -> OK ["foo", "v2"]``() = task {
+        let! response = client.PostAsync("/only-query-parameters?dataset=foo&version=v2", null)
+        let! text = response.Content.ReadAsStringAsync()
+        Assert.Equal("[\"foo\",\"v2\"]",text)
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode)
+    }
+
+    [<Fact>]
+    let ``POST /only-form-parameters (FormUrlEncoded dataset=foo&version=v2) -> OK ["foo", "v2"]``() = task {
+        let content =
+            seq {
+                "dataset", "foo"
+                "version", "v2"
+            }
+            |> Seq.map KeyValuePair
+        use content = new FormUrlEncodedContent(content)
+        let! response = client.PostAsync("/only-form-parameters", content)
+        let! text = response.Content.ReadAsStringAsync()
+        Assert.Equal("[\"foo\",\"v2\"]",text)
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode)
+    }
+
+    [<Fact>]
+    let ``POST /only-json-parameters (JSON {"dataset":"foo","version":"v2"}) -> OK ["foo", "v2"]``() = task {
+        let content = """{"dataset":"foo","version":"v2"}"""
+        use content = new StringContent(content, Encoding.UTF8, "application/json")
+        let! response = client.PostAsync("/only-json-parameters", content)
+        let! text = response.Content.ReadAsStringAsync()
+        Assert.Equal("[\"foo\",\"v2\"]",text)
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode)
     }
 
     interface IDisposable with
