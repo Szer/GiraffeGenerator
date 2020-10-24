@@ -52,6 +52,10 @@
       <OpenApiUseNodaTime>true</OpenApiUseNodaTime>
       <OpenApiSpecFile>specs/specForNodaTimeDateTimeFormatHandling.yaml</OpenApiSpecFile>
     </Compile>
+    <Compile Include="SpecWithValidation.fs">
+      <OpenApiModuleName>SpecWithValidation</OpenApiModuleName>
+      <OpenApiSpecFile>specs/specWithValidation.yaml</OpenApiSpecFile>
+    </Compile>
     <None Include="NuGet.Config" />
     <Compile Include="SpecSimpleTests.fs" />
     <Compile Include="SpecWithSchemasTests.fs" />
@@ -65,6 +69,7 @@
     <Content Include="specs\specGeneralForNodaTime.yaml" />
     <Content Include="specs\specForNodaTimeDateTimeFormatHandling.yaml" />
     <Content Include="specs\specWithArguments.yaml" />
+    <Content Include="specs\specWithValidation.yaml" />
     <Content Include="specs\specSimple.yaml" />
   </ItemGroup>
 

@@ -239,8 +239,8 @@
                 |> Option.filter (fun pattern ->
                     try
                         do Regex(pattern, RegexOptions.ECMAScript) |> ignore
-                        true
-                    with | _ -> false)
+                        false
+                    with | _ -> true)
                 |> Option.map (failwithf "pattern /%s/ should be a valid ECMA regexp")
                 |> Option.defaultValue ()
             {
