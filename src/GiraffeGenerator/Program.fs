@@ -66,7 +66,7 @@ let main argv =
     let api = parse doc
     
     let resultSource =
-        giraffeAst api
+        giraffeAst config api
         |> sourceCode
     File.WriteAllText(outputFile, resultSource)
     

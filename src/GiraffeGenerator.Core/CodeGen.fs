@@ -194,7 +194,9 @@ let generateInputsCombination combinedRecordPropertyToOriginalValue synt (schema
     generateBinds onlyNames.Head onlyNames.Tail finalGenerator
 
 /// Creating whole module AST for Giraffe webapp
-let giraffeAst (api: Api) =
+let giraffeAst (config: Configuration) (api: Api) =
+    let extractResponseSynType = extractResponseSynType config
+    
     moduleDecl
         (xml api.Docs)
         api.Name
@@ -261,7 +263,7 @@ let giraffeAst (api: Api) =
 
           if not allSchemas.IsEmpty then
               yield! [
-                 types (extractRecords allSchemas)
+                 types (extractRecords config allSchemas)
 
                  // generate helper functions for error handling
                  if errorsPossible then
@@ -486,7 +488,7 @@ let giraffeAst (api: Api) =
                                         queryForBindingSchema
                                         |> Option.map ^ fun v ->
                                             bindRaw
-                                            ^|> Result.mapExpr (DefaultsGeneration.generateDefaultMappingFunFromSchema temporarySchemasForBindingBeforeDefaultsApplianceMap v querySchema)
+                                            ^|> Result.mapExpr (DefaultsGeneration.generateDefaultMappingFunFromSchema config temporarySchemasForBindingBeforeDefaultsApplianceMap v querySchema)
                                         // or just take raw binding if there are no defaults
                                         |> Option.defaultValue bindRaw
                                     // and apply letExpr to generated binding to generate `let queryArgs = bindQuery()`, leaving continuation not applied 
@@ -570,7 +572,7 @@ let giraffeAst (api: Api) =
                                                     bodyInputForBindingMapping
                                                     |> Option.map ^ fun v ->
                                                         bindRaw
-                                                        ^|> Result.mapExpr (DefaultsGeneration.generateDefaultMappingFunFromSchema temporarySchemasForBindingBeforeDefaultsApplianceMap v bodySchema)
+                                                        ^|> Result.mapExpr (DefaultsGeneration.generateDefaultMappingFunFromSchema config temporarySchemasForBindingBeforeDefaultsApplianceMap v bodySchema)
                                                     // or leave binding as is otherwise
                                                     |> Option.defaultValue bindRaw
                                                 // generate "with" section body of try..with: 

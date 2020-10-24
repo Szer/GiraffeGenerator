@@ -469,6 +469,19 @@ let dateTimeType = synType "System.DateTime"
 let dateTimeOffsetType = synType "System.DateTimeOffset"
 let guidType = synType "System.Guid"
 let uriType = synType "System.Uri"
+let nodaTypes =
+    {|
+        Instant = synType "NodaTime.Instant"
+        LocalDate = synType "NodaTime.LocalDate"
+        LocalTime = synType "NodaTime.LocalTime"
+        LocalDateTime = synType "NodaTime.LocalDateTime"
+        OffsetDateTime = synType "NodaTime.OffsetDateTime"
+        ZonedDateTime = synType "NodaTime.ZonedDateTime"
+        Offset = synType "NodaTime.Offset"
+        Duration = synType "NodaTime.Duration"
+        Period = synType "NodaTime.Period"
+        DateTimeZone = synType "NodaTime.DateTimeZone"
+    |}
 
 /// Expression for field in records
 /// {name}: {fieldType}
