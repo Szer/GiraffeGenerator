@@ -167,3 +167,27 @@ module rec Enumeration =
             | TypeKind.BuiltIn _ -> ()
         }
         |> Seq.choose id
+
+/// gets a unique identifier of a custom attribute type ignoring any parameters for a type's instance
+/// basically converts DU case value to a bitflag
+/// 0 indicates a non-custom type which needs no generation
+let rec identifyCustomValidationAttributeType value =
+    match value with
+    | BuiltInAttribute _ -> 0
+    | SpecialCasedCustomValidationAttribute specialCased ->
+        match specialCased with
+        | UniqueItems _ -> 1
+    | CustomAttribute custom ->
+        match custom with
+        | LongRange _ -> 2
+        | RegexPattern _ -> 4
+        | MultipleOf target ->
+            match target with
+            | IntMultiple _ -> 8
+            | LongMultiple _ -> 16
+        | EnumAttribute enum ->
+            match enum with
+            | IntEnum _ -> 32
+            | LongEnum _ -> 64
+            | FloatEnum _ -> 128
+            | StringEnum _ -> 256
