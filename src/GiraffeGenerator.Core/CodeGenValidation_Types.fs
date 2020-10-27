@@ -1,5 +1,8 @@
 ﻿module CodeGenValidation_Types
 
+open OpenApi
+open OpenApiValidation
+
 // convert OpenApi representation to something more useful for codegen
 
 type EnumTargets =
@@ -30,6 +33,18 @@ type RangeValues<'a> =
     | Min of 'a
     | Max of 'a
     | Both of 'a*'a
+
+let inline private toExclusive operator (range: ^v NumberBoundary) =
+    if not range.Exclusive then range.Value
+    elif not (box range.Value :? float) then operator range.Value LanguagePrimitives.GenericOne
+    else ((box operator :?> float -> float -> float) ((box range.Value) :?> float) 1e-8 (*Fabulous doesn't generate values with a really small exponents*) |> box) :?> ^v
+
+let inline private rangeValuesFromRanges a b =
+    let a = a |> Option.map (toExclusive (+))
+    let b = b |> Option.map (toExclusive (-))
+    Option.map2 (fun a b -> Both (a, b)) a b
+    |> Option.orElse (a |> Option.map Min)
+    |> Option.orElse (b |> Option.map Max)
 
 type BuiltInAttribute =
     | IntRange of int RangeValues
@@ -88,3 +103,67 @@ type ValidationAttribute =
         | BuiltInAttribute a, BuiltInAttribute b -> a.TypeEquals b
         | SpecialCasedCustomValidationAttribute a, SpecialCasedCustomValidationAttribute b -> a.TypeEquals b
         | _ -> false
+
+module rec Enumeration =
+    let enumeratePropertyValidation recurse kind =
+        seq {
+            let isRequired = match kind with | TypeKind.Option _ -> false | _ -> true
+            if isRequired then
+                Required |> BuiltInAttribute
+            yield! enumerateKindValidation recurse kind
+        }
+
+    /// Enumerates every used attribute for a kind (including attribute parameters).
+    /// Includes a flag parameter controlling should the enumeration be recursive.
+    /// Arrays yield only the validation for arrays themselves (like MinLength/MaxLength).
+    /// Arrays, Options and Objects do not yield theirs underlying value validation by themselves.
+    /// Underlying values validation is still yielded if recurse: true
+    let rec enumerateKindValidation recurse kind =
+        seq {
+            match kind with
+            | TypeKind.Array (kind,_,validation) ->
+                if validation.IsSome then
+                    let validation = validation.Value
+                    if validation.UniqueItems then
+                        UniqueItems |> SpecialCasedCustomValidationAttribute |> Some
+                    validation.MinItems |> Option.map (MinLength >> BuiltInAttribute)
+                    validation.MaxItems |> Option.map (MaxLength >> BuiltInAttribute)
+                if recurse then
+                    for child in enumerateKindValidation recurse kind do
+                        Some child
+            | TypeKind.Option kind ->
+                if recurse then
+                    for child in enumerateKindValidation recurse kind do
+                        Some child
+            | TypeKind.Object obj ->
+                if recurse then
+                    for (_, propertyKind, _) in obj.Properties do
+                        for child in enumeratePropertyValidation recurse propertyKind do
+                            Some child
+            | TypeKind.DU _ -> failwith "OneOf validation is not supported yet"
+            | TypeKind.Prim prim ->
+                match prim with
+                | PrimTypeKind.Int (Some validation) ->
+                    validation.MultipleOf |> Option.map (IntMultiple >> MultipleOf >> CustomAttribute)
+                    validation.EnumValues |> Option.map (IntEnum >> EnumAttribute >> CustomAttribute)
+                    rangeValuesFromRanges validation.Minimum validation.Maximum
+                    |> Option.map (IntRange >> BuiltInAttribute)
+                | PrimTypeKind.Long (Some validation) ->
+                    validation.MultipleOf |> Option.map (LongMultiple >> MultipleOf >> CustomAttribute)
+                    validation.EnumValues |> Option.map (LongEnum >> EnumAttribute >> CustomAttribute)
+                    rangeValuesFromRanges validation.Minimum validation.Maximum
+                    |> Option.map (LongRange >> CustomAttribute)
+                | PrimTypeKind.Double (Some validation) ->
+                    validation.EnumValues |> Option.map (FloatEnum >> EnumAttribute >> CustomAttribute)
+                    rangeValuesFromRanges validation.Minimum validation.Maximum
+                    |> Option.map (FloatRange >> BuiltInAttribute)
+                | PrimTypeKind.String (StringFormat.String (Some validation)) ->
+                    validation.MinLength |> Option.map (MinLength >> BuiltInAttribute)
+                    validation.MaxLength |> Option.map (MaxLength >> BuiltInAttribute)
+                    validation.EnumValues |> Option.map (StringEnum >> EnumAttribute >> CustomAttribute)
+                    validation.Pattern |> Option.map (RegexPattern >> CustomAttribute)
+                | _ -> ()
+            | TypeKind.NoType
+            | TypeKind.BuiltIn _ -> ()
+        }
+        |> Seq.choose id
