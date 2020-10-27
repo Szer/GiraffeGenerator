@@ -612,9 +612,12 @@ let simpleValueMatching value cases =
                     SynPat.LongIdent(longIdentWithDots v, None, None, [SynPat.Named(SynPat.Wild(r), ident into, false, None, r)] |> Pats, None, r) ^=> res
             )
     matchExpr value clauses
-let inline (^|>) a b = app (appI (identExpr "op_PipeRight") a) b
-let inline (^>>) a b = paren (app (appI (identExpr "op_ComposeRight") a) b)
-let inline (^=) a b = app (appI (identExpr "op_Equals") a) b
+
+
+let inline appBinaryOpExpr op a b = app(appI (identExpr op) a) b
+let inline (^|>) a b = appBinaryOpExpr "op_PipeRight" a b
+let inline (^>>) a b = appBinaryOpExpr "op_ComposeRight" a b |> paren
+let inline (^=) a b = appBinaryOpExpr "op_Equals" a b
 
 let setStatusCodeExpr code =
     app (identExpr "setStatusCode") (intExpr code)
