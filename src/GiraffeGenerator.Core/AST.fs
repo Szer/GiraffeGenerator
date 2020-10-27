@@ -64,6 +64,9 @@ let emptyMethodVal =
 /// Expression for named pattern {name}
 let synPat name =
     SynPat.Named(SynPat.Wild(r), ident name, false, None, r)
+/// Expression for typed named pattern ({name}: {synType})
+let synPatTyped name synType =
+    SynPat.Typed(synPat name, synType, r)
 
 /// Expression for long idented pattern
 /// {pat} {name}
@@ -423,7 +426,9 @@ let simplePat name = SynSimplePat.Id(ident name,None,false,false,false,r)
 
 let simplePats pats = SynSimplePats.SimplePats(pats, r)
 
-let singleTypedPat name synType = [SynSimplePat.Typed(simplePat name, synType, r)] |> simplePats 
+let simpleTypedPat name synType = SynSimplePat.Typed(simplePat name, synType, r)
+
+let singleTypedPat name synType = simplePats [simpleTypedPat name synType] 
 
 let singleSimplePat name = simplePats [simplePat name]
 
@@ -493,8 +498,13 @@ let field name fieldType =
     SynField.Field([], false, Some(ident name), fieldType, false, PreXmlDoc.Empty, None, r)
    
 /// Tuple pattern (for arg list or matching) 
+let tuplePatComplex args =
+    SynPat.Paren(SynPat.Tuple(false, args, r), r)
+/// Tuple pattern (for arg list or matching) 
 let tuplePat args =
-    SynPat.Paren(SynPat.Tuple(false, args |> List.map (fun v -> SynPat.Named(SynPat.Wild(r), ident v, false, None, r)), r), r)
+   args
+   |> List.map (fun v -> SynPat.Named(SynPat.Wild(r), ident v, false, None, r))
+   |> tuplePatComplex
 
 /// Expression for implementing any member kind in class
 let implDefn memberKind isOverride name args expr =
