@@ -181,7 +181,7 @@ let letDecl recursive name parameters retType expr =
                         false,
                         [],
                         PreXmlDocEmpty,
-                        SynValData.SynValData(None, curriedArgs parameters, None),
+                        SynValData.SynValData(None, curriedArgs [], None),
                         SynPat.LongIdent(longIdentWithDots name, None, None, parameters |> List.map (fun p -> SynPat.Named(SynPat.Wild(r), ident p, false, None, r)) |> Pats, None, r),
                         retType |> Option.map (fun retType -> (SynBindingReturnInfo(retType, r, []))),
                         retType
