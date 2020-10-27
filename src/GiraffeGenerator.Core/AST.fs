@@ -167,7 +167,7 @@ let lambdaFunNextCtxExpr expr =
 
 /// Let declaration
 /// E.g. let {recursive} {name} {parameters}: retType = {expr}
-let letDecl recursive name parameters retType expr =
+let letDeclComplex recursive name parameters retType expr =
     let retType = retType |> Option.map (longIdentWithDots >> SynType.LongIdent)
     SynModuleDecl.Let
         (
@@ -182,7 +182,7 @@ let letDecl recursive name parameters retType expr =
                         [],
                         PreXmlDocEmpty,
                         SynValData.SynValData(None, curriedArgs [], None),
-                        SynPat.LongIdent(longIdentWithDots name, None, None, parameters |> List.map (fun p -> SynPat.Named(SynPat.Wild(r), ident p, false, None, r)) |> Pats, None, r),
+                        SynPat.LongIdent(longIdentWithDots name, None, None, parameters |> Pats, None, r),
                         retType |> Option.map (fun retType -> (SynBindingReturnInfo(retType, r, []))),
                         retType
                             |> Option.map (fun retType -> SynExpr.Typed(expr, retType, r))
@@ -193,6 +193,11 @@ let letDecl recursive name parameters retType expr =
             ],
             r
         )
+/// Let declaration
+/// E.g. let {recursive} {name} {parameters}: retType = {expr}
+let letDecl recursive name parameters retType expr =
+    let parameters = parameters |> List.map (fun p -> SynPat.Named(SynPat.Wild(r), ident p, false, None, r))
+    letDeclComplex recursive name parameters retType expr
 
 /// Let declaration for Giraffe HttpHandler with specified name and body expression
 /// E.g.:
