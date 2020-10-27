@@ -12,7 +12,7 @@ Neither should you, so this library will help you with that
 
 It follows [Myriad](https://github.com/MoiraeSoftware/myriad) approach and defines MSBuild target to generate code based on input
 
-It's still in VERY early stage of development, so only VERY basic features are being supported.
+It's still in early stage of development, so mostly basic features are being supported.
 
 ## Example project is available to check [here](https://github.com/Szer/GiraffeGenerator/tree/master/src/Example)
 
@@ -21,16 +21,23 @@ It's still in VERY early stage of development, so only VERY basic features are b
 - [ ] Creating models from OpenAPI schemas
    - [x] records generated from schema definitions with all data types from spec
    - [x] handlers in generated webApp should support these types
+   - [x] default values support for primitive types
    - [ ] `oneOf` support
    - [ ] `anyOf` support
    - [ ] `allOf` support
    - [ ] `discriminator` support
    - [x] `not` *won't be supported*
+   - [ ] validation support (#33)
+   - [ ] NodaTime support opt-in (#32)
 - [x] Multiple responses from one endpoint
-- [ ] Creating endpoints with path/query/body bindings
+- [ ] Creating endpoints with support for bindings
    - [x] path
    - [x] query
-   - [ ] body
+   - [x] body
+   - [ ] header (#35)
+   - [ ] cookie (#35)
+   - [ ] content-type negotiated body (#36)
+   - [x] binding error handling
 - [x] Add XML comments on top of endpoint from OpenAPI descriptions
 - [ ] Support authentication (best efforts)
 - [ ] Support JSON/XML (de-)serialization
@@ -49,6 +56,8 @@ It's still in VERY early stage of development, so only VERY basic features are b
 ```
 - Build project to generate the file
 - Implement interface defined in this file and register your implementation in AspNetCore DI
+- May require serializer configuration to support mapping of absent and null values from/to Optionon<_>
+- May require serializer configuration to throw on absent required properties
 
 ## How it works internally
 

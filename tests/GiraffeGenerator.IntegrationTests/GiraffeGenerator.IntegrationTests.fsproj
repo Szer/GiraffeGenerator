@@ -6,6 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="OptionConverter.fs" />
     <Compile Include="SpecSimple.fs">
       <OpenApiSpecFile>specs/specSimple.yaml</OpenApiSpecFile>
     </Compile>
@@ -15,14 +16,23 @@
     <Compile Include="SpecWithArguments.fs">
       <OpenApiSpecFile>specs/specWithArguments.yaml</OpenApiSpecFile>
     </Compile>
+    <Compile Include="SpecWithParametersAndRequestBodySchemas.fs">
+      <OpenApiSpecFile>specs/specWithParametersAndRequestBodySchemas.yaml</OpenApiSpecFile>
+    </Compile>
     <None Include="NuGet.Config" />
     <Compile Include="SpecSimpleTests.fs" />
     <Compile Include="SpecWithSchemasTests.fs" />
     <Compile Include="SpecWithArgumentsTests.fs" />
+    <Compile Include="SpecWithParametersAndRequestBodyTests.fs" />
+    <Content Include="RemoveGenerated.ps1" />
+    <Content Include="specs\specWithSchemas.yaml" />
+    <Content Include="specs\specWithParametersAndRequestBodySchemas.yaml" />
+    <Content Include="specs\specWithArguments.yaml" />
+    <Content Include="specs\specSimple.yaml" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Update="FSharp.Core" Version="4.7.2"/>
+    <PackageReference Update="FSharp.Core" Version="4.7.2" />
     <PackageReference Include="Giraffe" Version="4.0.1" />
     <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="3.1.3" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.5.0" />

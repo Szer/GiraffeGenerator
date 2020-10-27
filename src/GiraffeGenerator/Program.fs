@@ -18,7 +18,12 @@ let main argv =
     let inputFile = getArg argv "--inputfile"
     let outputFile = getArg argv "--outputfile"
     
-    let doc,_ = read inputFile
+    let doc, errors = read inputFile
+    if errors <> null && errors.Errors <> null && errors.Errors.Count > 0 then 
+        errors.Errors
+        |> Seq.map (fun err -> sprintf "%s (at %s)" err.Message err.Pointer)
+        |> String.concat "\n"
+        |> failwith
     let api = parse doc
     
     let resultSource =

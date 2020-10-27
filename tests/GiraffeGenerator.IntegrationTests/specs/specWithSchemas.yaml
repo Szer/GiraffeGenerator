@@ -1,21 +1,37 @@
 openapi: "3.0.0"
 info:
   title: Spec with schemas API
+  version: 1
 paths:
   /:
     get:
       operationId: listVersionsv2
+      responses:
+        '200':
+          description: returns string
+          content:
+            application/json:
+              schema:
+                type: string
   /v2:
     get:
       operationId: getVersionDetailsv2
       responses:
         '200':
+          description: returns dataset
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/dataSetList'
     post:
       operationId: postVersionDetailsv2
+      responses:
+        '200':
+          description: returns string
+          content:
+            application/json:
+              schema:
+                type: string
 components:
   schemas:
     dataSetList:
@@ -48,3 +64,15 @@ components:
               apiHash:
                 type: string
                 format: byte
+            required:
+              - apiKey
+              - apiVersionNumber
+              - apiUrl
+              - apiCount
+              - apiAvg
+              - isInternal
+              - start
+              - apiHash
+      required:
+        - total
+        - apis

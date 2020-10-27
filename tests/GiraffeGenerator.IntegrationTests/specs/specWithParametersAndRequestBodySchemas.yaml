@@ -1,0 +1,108 @@
+openapi: "3.0.0"
+info:
+  title: Spec with parameters and request body API
+  version: 1
+paths:
+  /id/{param}:
+    parameters:
+      - schema:
+          type: string
+        name: param
+        in: path
+        required: true
+    post:
+      operationId: postId
+      parameters:
+        - schema:
+            type: integer
+          name: param
+          in: query
+          required: false
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/dataSetListInput'
+      responses:
+        '200':
+          description: returns all input parameters in one object
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dataSetListOutput'
+components:
+  schemas:
+    forDefaultsTesting:
+      type: object
+      properties:
+        optionalArrayWithDefaultItems:
+          type: array
+          items:
+            type: integer
+            default: 42
+        requiredArrayWithDefaultItems:
+            type: array
+            items:
+              type: integer
+              default: 48
+        apiKey:
+          type: string
+          format: password
+          default: pa$$word
+        apiVersionNumber:
+          type: string
+          default: 1
+        apiUrl:
+          type: string
+          format: uriref
+          default: http://localhost:8080/api
+        apiCount:
+          type: integer
+          format: int64
+          default: 123456789123456
+        apiAvg:
+          type: integer
+          default: 1234567890
+        isInternal:
+          type: boolean
+          default: true
+        start:
+          type: string
+          format: date
+          default: 2020-10-8
+        someDateTime:
+          type: string
+          format: date-time
+          default: 2020-10-8T00:55:00+03:00
+        pi:
+          type: number
+          default: 3.14
+        someUid:
+          type: string
+          format: uid
+          default: 8282cbfd-f323-4b7d-bcc0-28f127c2b365
+      required:
+        - requiredArrayWithDefaultItems
+    dataSetListInput:
+      type: object
+      properties:
+        total:
+          type: integer
+        defaultsTest:
+          $ref: '#/components/schemas/forDefaultsTesting'
+      required:
+        - defaultsTest
+    dataSetListOutput:
+      type: object
+      properties:
+        pathParam:
+          type: string
+        queryParam:
+          type: integer
+        total:
+          type: integer
+        defaultsTest:
+          $ref: '#/components/schemas/forDefaultsTesting'
+      required:
+        - pathParam
+        - defaultsTest
