@@ -249,16 +249,8 @@ let giraffeAst (api: Api) =
                 yield! temporarySchemasForBindingBeforeDefaultsAppliance |> Seq.map ^ fun v -> { Kind = v.Generated; Name = v.GeneratedName; Docs = None; DefaultValue = None }
                 for path in api.Paths do
                     for method in path.Methods do
-                        
-                        let allParameterSchemas =
-                            let body = method.BodyParameters |> Option.map (Seq.map snd)
-                            let nonBody = method.OtherParameters |> Option.map (Map.toSeq >> Seq.map snd)
-                            Option.map2 Seq.append nonBody body
-                            |> Option.orElse body
-                            |> Option.orElse nonBody  
-                        if allParameterSchemas.IsSome then
-                            for schema in allParameterSchemas.Value do
-                                schema
+                        for schema in method.AllParameters do
+                            schema
                                 
                         if hasMultipleNonBodyParameters method then
                             let name = requestCommonInputTypeName method

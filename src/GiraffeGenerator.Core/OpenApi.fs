@@ -369,6 +369,7 @@ type PathMethodCall =
       Responses: Response list
       BodyParameters: (MediaType*TypeSchema) array option
       OtherParameters: Map<PayloadNonBodyLocation, TypeSchema> option
+      AllParameters: TypeSchema array
       Docs: Docs option }
 
 /// Representation of OpenApi path with methods attach
@@ -452,7 +453,7 @@ let parse (doc: OpenApiDocument): Api =
                                 |> Seq.groupBy (fun x -> Option.ofNullable x.In |> Option.defaultValue ParameterLocation.Query |> PayloadNonBodyLocation.FromParameterLocation)
                                 |> Seq.map (fun (location, parameters) ->
                                     location, TypeSchema.Parse(methodName + opName + location.ToString(), parameters))
-                                |> Map
+                                |> Seq.toArray
                             )
 
                     let bodyParameters =
@@ -487,7 +488,15 @@ let parse (doc: OpenApiDocument): Api =
                       Name = opName
                       Responses = responses
                       BodyParameters = bodyParameters
-                      OtherParameters = nonBodyParameters
+                      OtherParameters = nonBodyParameters |> Option.map Map
+                      AllParameters =
+                          let body = bodyParameters |> Option.map (Seq.map snd)
+                          let nonBody = nonBodyParameters |> Option.map (Seq.map snd)
+                          Option.map2 Seq.append body nonBody
+                          |> Option.orElse body
+                          |> Option.orElse nonBody
+                          |> Option.map Seq.toArray
+                          |> Option.defaultValue Array.empty
                       Docs = Docs.Create(op.Description, op.Summary, null) } ]
                 
             yield { Route = route
