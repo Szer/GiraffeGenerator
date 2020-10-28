@@ -19,14 +19,51 @@
     <Compile Include="SpecWithParametersAndRequestBodySchemas.fs">
       <OpenApiSpecFile>specs/specWithParametersAndRequestBodySchemas.yaml</OpenApiSpecFile>
     </Compile>
+    <Compile Include="SpecGeneralForNodaTime.fs">
+      <OpenApiUseNodaTime>true</OpenApiUseNodaTime>
+      <OpenApiSpecFile>specs/specGeneralForNodaTime.yaml</OpenApiSpecFile>
+    </Compile>
+    <Compile Include="SpecForNodaTimeDateTimeInstantFormatHandling.fs">
+      <OpenApiModuleName>SpecForNodaTimeDateTimeInstantFormatHandling</OpenApiModuleName>
+      <OpenApiUseNodaTime>true</OpenApiUseNodaTime>
+      <OpenApiMapDateTimeInto>instant</OpenApiMapDateTimeInto>
+      <OpenApiSpecFile>specs/specForNodaTimeDateTimeFormatHandling.yaml</OpenApiSpecFile>
+    </Compile>
+    <Compile Include="SpecForNodaTimeDateTimeLocalDateTimeFormatHandling.fs">
+      <OpenApiModuleName>SpecForNodaTimeDateTimeLocalDateTimeFormatHandling</OpenApiModuleName>
+      <OpenApiUseNodaTime>true</OpenApiUseNodaTime>
+      <OpenApiMapDateTimeInto>local-date-time</OpenApiMapDateTimeInto>
+      <OpenApiSpecFile>specs/specForNodaTimeDateTimeFormatHandling.yaml</OpenApiSpecFile>
+    </Compile>
+    <Compile Include="SpecForNodaTimeDateTimeOffsetDateTimeFormatHandling.fs">
+      <OpenApiModuleName>SpecForNodaTimeDateTimeOffsetDateTimeFormatHandling</OpenApiModuleName>
+      <OpenApiUseNodaTime>true</OpenApiUseNodaTime>
+      <OpenApiMapDateTimeInto>offset-date-time</OpenApiMapDateTimeInto>
+      <OpenApiSpecFile>specs/specForNodaTimeDateTimeFormatHandling.yaml</OpenApiSpecFile>
+    </Compile>
+    <Compile Include="SpecForNodaTimeDateTimeZonedDateTimeFormatHandling.fs">
+      <OpenApiModuleName>SpecForNodaTimeDateTimeZonedDateTimeFormatHandling</OpenApiModuleName>
+      <OpenApiUseNodaTime>true</OpenApiUseNodaTime>
+      <OpenApiMapDateTimeInto>zoned-date-time</OpenApiMapDateTimeInto>
+      <OpenApiSpecFile>specs/specForNodaTimeDateTimeFormatHandling.yaml</OpenApiSpecFile>
+    </Compile>
+    <Compile Include="SpecForNodaTimeDateTimeDefaultFormatHandling.fs">
+      <OpenApiModuleName>SpecForNodaTimeDateTimeDefaultFormatHandling</OpenApiModuleName>
+      <OpenApiUseNodaTime>true</OpenApiUseNodaTime>
+      <OpenApiSpecFile>specs/specForNodaTimeDateTimeFormatHandling.yaml</OpenApiSpecFile>
+    </Compile>
     <None Include="NuGet.Config" />
     <Compile Include="SpecSimpleTests.fs" />
     <Compile Include="SpecWithSchemasTests.fs" />
     <Compile Include="SpecWithArgumentsTests.fs" />
     <Compile Include="SpecWithParametersAndRequestBodyTests.fs" />
+    <Compile Include="SpecGeneralForNodaTimeTests.fs" />
+    <Compile Include="SpecForNodaTimeDateTimeInstantFormatHandlingTests.fs" />
     <Content Include="RemoveGenerated.ps1" />
     <Content Include="specs\specWithSchemas.yaml" />
     <Content Include="specs\specWithParametersAndRequestBodySchemas.yaml" />
+    <Content Include="specs\specGeneralForNodaTime.yaml" />
+    <Content Include="specs\specForNodaTimeDateTimeFormatHandling.yaml" />
     <Content Include="specs\specWithArguments.yaml" />
     <Content Include="specs\specSimple.yaml" />
   </ItemGroup>
@@ -36,6 +73,7 @@
     <PackageReference Include="Giraffe" Version="4.0.1" />
     <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="3.1.3" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.5.0" />
+    <PackageReference Include="NodaTime.Serialization.JsonNet" Version="3.0.0" />
     <PackageReference Include="Xunit" Version="2.4.1" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.4.1">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

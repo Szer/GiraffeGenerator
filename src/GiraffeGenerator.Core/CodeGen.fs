@@ -194,10 +194,12 @@ let generateInputsCombination combinedRecordPropertyToOriginalValue synt (schema
     generateBinds onlyNames.Head onlyNames.Tail finalGenerator
 
 /// Creating whole module AST for Giraffe webapp
-let giraffeAst (api: Api) =
+let giraffeAst (api: Api) =    
+    let moduleName = Configuration.value.ModuleName |> Option.defaultValue api.Name
+    
     moduleDecl
         (xml api.Docs)
-        api.Name
+        moduleName
         [ openDecl "FSharp.Control.Tasks.V2.ContextInsensitive"
           openDecl "Giraffe"
           openDecl "System.Threading.Tasks"

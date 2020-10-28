@@ -6,6 +6,7 @@ open Microsoft.OpenApi.Models
 open Microsoft.OpenApi.Readers
 open System.IO
 open System.Text.RegularExpressions
+open NodaTime.Text
 
 let inline trimLower (s: string) =
     if isNull s then None else
@@ -79,45 +80,104 @@ type PrimTypeKind =
         
     member s.GetDefaultLiteral (value: IOpenApiPrimitive) =
         let fw t = failwithf "%s literal has been found for non-%s type" t t
-        let inline oneWay kind (value: ^v) (toDefault: ^t -> DefaultableKind) =
+        let inline oneWay kind (value: ^v) (toDefault: ^t -> ^o) =
             match s with
             | x when x = kind ->
                 let v = (^v:(member Value: ^t) value)
                 toDefault v
             | _ -> fw (value.GetType().Name)
-            
-        match value with
-        | :? OpenApiInteger as int ->
-            match s with
-            | Int -> DefaultableKind.Integer int.Value
-            | Long -> DefaultableKind.Long (int64 int.Value)
-            | _ -> fw "integer"
-        | :? OpenApiLong as long ->
-            match s with
-            | Int ->  DefaultableKind.Long (int64 long.Value) 
-            | Long -> DefaultableKind.Long long.Value
-            | _ -> fw "int64"
-        | :? OpenApiDouble as double -> oneWay Double double DefaultableKind.Double
-        | :? OpenApiBoolean as bool -> oneWay Bool bool DefaultableKind.Boolean
-        | :? OpenApiDateTime as dateTime -> oneWay (String DateTimeString) dateTime DefaultableKind.DateTime
-        | :? OpenApiDate as date -> oneWay (String DateString) date DefaultableKind.Date
-        | :? OpenApiPassword as pwd -> oneWay (String PasswordString) pwd DefaultableKind.String
-        | :? OpenApiString as str ->
-            match s with
-            | String s ->
-                let inline oneWay x = oneWay (String s) x
+        
+        let nodaMatch () =
+            let inline matchDateTime dt =
+                let inline oneWay f = oneWay (String DateTimeString) dt (f >> Some)
+                match Configuration.value.MapDateTimeInto with
+                | Configuration.DateTimeGeneratedType.ZonedDateTime -> oneWay (NodaTime.ZonedDateTime.FromDateTimeOffset >> ZonedDateTime) 
+                | Configuration.DateTimeGeneratedType.OffsetDateTime -> oneWay (NodaTime.OffsetDateTime.FromDateTimeOffset >> OffsetDateTime)
+                | Configuration.DateTimeGeneratedType.LocalDateTime -> oneWay (fun dto -> NodaTime.LocalDateTime.FromDateTime dto.DateTime |> LocalDateTime)
+                | Configuration.DateTimeGeneratedType.Instant -> oneWay (fun dto -> NodaTime.OffsetDateTime.FromDateTimeOffset(dto).ToInstant() |> Instant)
+            match value with
+            | :? OpenApiDateTime as dt -> matchDateTime dt
+            | :? OpenApiDate as d -> oneWay (String DateString) d (NodaTime.LocalDate.FromDateTime >> LocalDate >> Some)
+            | :? OpenApiString as str ->
                 match s with
-                | PasswordString
-                | StringFormat.String -> oneWay str DefaultableKind.String
-                | Custom "uri"
-                | Custom "uriref" -> oneWay {| Value = System.Uri str.Value |} DefaultableKind.Uri
-                | Custom "uuid"
-                | Custom "guid"
-                | Custom "uid" -> oneWay {| Value = Guid.Parse str.Value |} DefaultableKind.Guid
-                | _ -> oneWay str DefaultableKind.String
-            | _ -> fw "string"
-        | v -> failwith (sprintf "%A literals aren't supported for kind %A" v s)
+                | String f ->
+                    let inline extract (v: ParseResult<_>) = v.Value
+                    let inline oneWay kind fn = oneWay (String f) str (fn >> kind >> Some)
+                    let inline oneWayP kind (pattern: ^p) =
+                        let inline parse v = (^p:(member Parse : string -> ParseResult<_>) pattern, v)
+                        oneWay kind (parse >> extract)
+                    // use the same format strings as NodaTime serialization libraries define
+                    match f with
+                    | Custom "local-date"
+                    | DateString -> oneWayP LocalDate LocalDatePattern.Iso
+                    | DateTimeString -> {| Value = DateTimeOffset.Parse str.Value |} |> matchDateTime
+                    | Custom "instant" -> oneWayP Instant InstantPattern.ExtendedIso
+                    | Custom "time"
+                    | Custom "local-time" -> oneWayP LocalTime LocalTimePattern.GeneralIso
+                    | Custom "local-date-time" -> oneWayP LocalDateTime LocalDateTimePattern.ExtendedIso
+                    | Custom "offset-date-time" -> oneWayP OffsetDateTime OffsetDateTimePattern.Rfc3339
+                    | Custom "offset"
+                    | Custom "time-offset" -> oneWayP Offset OffsetPattern.GeneralInvariant
+                    | Custom "duration" -> oneWayP Duration DurationPattern.JsonRoundtrip
+                    | Custom "period" -> oneWayP Period PeriodPattern.Roundtrip
+                    | Custom "time-zone"
+                    | Custom "date-time-zone" ->
+                        let provider = NodaTime.DateTimeZoneProviders.Tzdb
+                        oneWay DateTimeZone (fun zone -> provider.[zone])
+                    | _ -> None
+                | _ -> None
+            | _ -> None
+        
+        let defaultMatch () =    
+            match value with
+            | :? OpenApiInteger as int ->
+                match s with
+                | Int -> DefaultableKind.Integer int.Value
+                | Long -> DefaultableKind.Long (int64 int.Value)
+                | _ -> fw "integer"
+            | :? OpenApiLong as long ->
+                match s with
+                | Int ->  DefaultableKind.Long (int64 long.Value) 
+                | Long -> DefaultableKind.Long long.Value
+                | _ -> fw "int64"
+            | :? OpenApiDouble as double -> oneWay Double double DefaultableKind.Double
+            | :? OpenApiBoolean as bool -> oneWay Bool bool DefaultableKind.Boolean
+            | :? OpenApiDateTime as dateTime -> oneWay (String DateTimeString) dateTime DefaultableKind.DateTime
+            | :? OpenApiDate as date -> oneWay (String DateString) date DefaultableKind.Date
+            | :? OpenApiPassword as pwd -> oneWay (String PasswordString) pwd DefaultableKind.String
+            | :? OpenApiString as str ->
+                match s with
+                | String s ->
+                    let inline oneWay x = oneWay (String s) x
+                    match s with
+                    | PasswordString
+                    | StringFormat.String -> oneWay str DefaultableKind.String
+                    | Custom "uri"
+                    | Custom "uriref" -> oneWay {| Value = System.Uri str.Value |} DefaultableKind.Uri
+                    | Custom "uuid"
+                    | Custom "guid"
+                    | Custom "uid" -> oneWay {| Value = Guid.Parse str.Value |} DefaultableKind.Guid
+                    | _ -> oneWay str DefaultableKind.String
+                | _ -> fw "string"
+            | v -> failwith (sprintf "%A literals aren't supported for kind %A" v s)
+        
+        Some Configuration.value
+        |> Option.filter (fun c -> c.UseNodaTime)
+        |> Option.bind (fun _ -> nodaMatch())
+        |> Option.map Noda
+        |> Option.defaultWith defaultMatch
 
+and NodaTimeDefaultableKind =
+    | Instant of NodaTime.Instant
+    | LocalDate of NodaTime.LocalDate
+    | LocalTime of NodaTime.LocalTime
+    | LocalDateTime of NodaTime.LocalDateTime
+    | OffsetDateTime of NodaTime.OffsetDateTime
+    | ZonedDateTime of NodaTime.ZonedDateTime
+    | Offset of NodaTime.Offset
+    | Duration of NodaTime.Duration
+    | Period of NodaTime.Period
+    | DateTimeZone of NodaTime.DateTimeZone
 and DefaultableKind =
     | String of string
     | Integer of int
@@ -128,6 +188,7 @@ and DefaultableKind =
     | Boolean of bool
     | Uri of Uri
     | Guid of Guid
+    | Noda of NodaTimeDefaultableKind
 
 /// IR for object schemas
 and ObjectKind =
@@ -192,7 +253,7 @@ and TypeKind =
     | DU of DUKind
     | BuiltIn of string
     | NoType
-    static member Parse(schema: OpenApiSchema): TypeKind * DefaultableKind option =
+    static member Parse (schema: OpenApiSchema): TypeKind * DefaultableKind option =
         if isNull schema then Prim PrimTypeKind.Any, None
         else
             let kind, def =
@@ -210,7 +271,7 @@ and TypeKind =
                         ObjectKind.Create(schema) |> Object, None
                 | PrimKind primType ->
                     let prim = PrimTypeKind.Parse(primType, schema.Format)
-                    let def = schema.Default |> Option.ofObj |> Option.map (fun x -> x:?>IOpenApiPrimitive) |> Option.map prim.GetDefaultLiteral
+                    let def = schema.Default |> Option.ofObj |> Option.map (fun x -> x:?>IOpenApiPrimitive) |> Option.map (prim.GetDefaultLiteral)
                     Prim prim, def
             if schema.Nullable && def.IsNone then
                 (Option kind), None

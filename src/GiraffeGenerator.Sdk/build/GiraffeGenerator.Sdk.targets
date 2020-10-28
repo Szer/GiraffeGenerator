@@ -5,6 +5,9 @@
         <ItemGroup>
             <GiraffeGeneratorSource Include="%(Compile.OpenApiSpecFile)" Condition=" '%(Compile.OpenApiSpecFile)' != '' ">
                 <OutputPath>$([System.IO.Path]::GetFullPath('%(Compile.FullPath)'))</OutputPath>
+                <UseNodaTime Condition=" '%(Compile.OpenApiUseNodaTime)' == 'true' ">true</UseNodaTime>
+                <ModuleName>%(Compile.OpenApiModuleName)</ModuleName>
+                <MapDateTimeInto>%(Compile.OpenApiMapDateTimeInto)</MapDateTimeInto>
             </GiraffeGeneratorSource>
         </ItemGroup>
 
@@ -12,6 +15,9 @@
             <GiraffeGeneratorCodegen Include="%(GiraffeGeneratorSource.FullPath)">
                 <OutputPath Condition=" '%(GiraffeGeneratorSource.OutputPath)' != '' ">$([System.IO.Path]::GetFullPath('%(GiraffeGeneratorSource.OutputPath)'))</OutputPath>
                 <OutputPath Condition=" '%(GiraffeGeneratorSource.OutputPath)' == '' ">%(GiraffeGeneratorSource.FullPath).fs</OutputPath>
+                <ModuleName>%(GiraffeGeneratorSource.ModuleName)</ModuleName>
+                <UseNodaTime Condition=" '%(GiraffeGeneratorSource.UseNodaTime)' == 'true' ">true</UseNodaTime>
+                <MapDateTimeInto>%(GiraffeGeneratorSource.MapDateTimeInto)</MapDateTimeInto>
             </GiraffeGeneratorCodegen>
         </ItemGroup>
 
@@ -51,11 +57,17 @@
         <PropertyGroup>
             <_GiraffeGeneratorSdk_InputFileName>%(GiraffeGeneratorCodegen.Identity)</_GiraffeGeneratorSdk_InputFileName>
             <_GiraffeGeneratorSdk_OutputFileName>%(GiraffeGeneratorCodegen.OutputPath)</_GiraffeGeneratorSdk_OutputFileName>
+            <_GiraffeGeneratorSdk_ModuleName>%(GiraffeGeneratorCodegen.ModuleName)</_GiraffeGeneratorSdk_ModuleName>
+            <_GiraffeGeneratorSdk_UseNodaTime Condition=" '%(GiraffeGeneratorCodegen.UseNodaTime)' == 'true' ">true</_GiraffeGeneratorSdk_UseNodaTime>
+            <_GiraffeGeneratorSdk_MapDateTimeInto>%(GiraffeGeneratorCodegen.MapDateTimeInto)</_GiraffeGeneratorSdk_MapDateTimeInto>
         </PropertyGroup>
 
         <ItemGroup>
             <GiraffeGeneratorSdk_Args Include='--inputfile "$(_GiraffeGeneratorSdk_InputFileName)"' />
             <GiraffeGeneratorSdk_Args Include='--outputfile "$(_GiraffeGeneratorSdk_OutputFileName)"' />
+            <GiraffeGeneratorSdk_Args Condition=" '$(_GiraffeGeneratorSdk_ModuleName)' != '' " Include='--module-name "$(_GiraffeGeneratorSdk_ModuleName)"' />
+            <GiraffeGeneratorSdk_Args Condition=" '$(_GiraffeGeneratorSdk_UseNodaTime)' == 'true' " Include='--use-noda-time' />
+            <GiraffeGeneratorSdk_Args Condition=" '$(_GiraffeGeneratorSdk_MapDateTimeInto)' != '' " Include='--map-date-time-into "$(_GiraffeGeneratorSdk_MapDateTimeInto)"' />
         </ItemGroup>
 
         <!-- Use dotnet to execute the process. -->

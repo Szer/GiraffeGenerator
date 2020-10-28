@@ -11,7 +11,8 @@
     <None Include="NuGet.Config" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Update="FSharp.Core" Version="4.7.2"/>
+    <PackageReference Update="FSharp.Core" Version="4.7.2" />
+    <PackageReference Include="Argu" Version="6.1.1" />
     <ProjectReference Include="..\GiraffeGenerator.Core\GiraffeGenerator.Core.fsproj" />
   </ItemGroup>
 </Project>
