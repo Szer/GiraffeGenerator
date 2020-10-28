@@ -137,15 +137,17 @@ let hasMultipleNonBodyParameters method =
 
 let hasErrorsPossible api =
     seq {
+        false, false // default for reduction
         for path in api.Paths do
             for method in path.Methods do
                 if method.BodyParameters.IsSome then
-                    true
+                    true, true
                 elif method.OtherParameters.IsSome then
+                    true,
                     method.OtherParameters.Value
                     |> Map.toSeq
                     |> Seq.exists (fst >> isNotPath)
-    } |> Seq.contains true
+    } |> Seq.reduce (fun (validation, other) (v, o) -> validation || v, other || o)
 
 
 /// generates arbitrary number of nested Result.bind applications
@@ -237,12 +239,12 @@ let giraffeAst (api: Api) =
               }
               |> Map
 
-          let errorsPossible = hasErrorsPossible api
+          let validationErrorsPossible, nonValidationErrorsPossible = hasErrorsPossible api
           
           let allSchemas =
               [
-                if errorsPossible then
-                    yield! CodeGenErrorsDU.typeSchemas
+                if validationErrorsPossible || nonValidationErrorsPossible then
+                    yield! CodeGenErrorsDU.typeSchemas nonValidationErrorsPossible
                 yield! api.Schemas
                 yield! temporarySchemasForBindingBeforeDefaultsAppliance |> Seq.map ^ fun v -> { Kind = v.Generated; Name = v.GeneratedName; Docs = None; DefaultValue = None }
                 for path in api.Paths do
@@ -266,9 +268,9 @@ let giraffeAst (api: Api) =
               yield! [
                  types (extractRecords allSchemas)
 
-                 // generate helper functions for error handling
-                 if errorsPossible then
-                    yield! CodeGenErrorsDU.generateHelperFunctions()
+                 if validationErrorsPossible || nonValidationErrorsPossible then
+                     // generate helper functions for error handling
+                     yield! CodeGenErrorsDU.generateHelperFunctions nonValidationErrorsPossible
               ]
 
           abstractClassDecl

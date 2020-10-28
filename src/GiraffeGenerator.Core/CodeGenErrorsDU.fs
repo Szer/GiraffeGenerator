@@ -11,32 +11,33 @@ let errInnerFormatterBindingExn = "FormatterBindingException"
 let errInnerValidationError = "ArgumentValidationError"
 let errInnerCombined = "CombinedArgumentErrors"
 let private summary v = Some { Summary = Some [v]; Example = None; Remarks = None; }
-let private errInnerType =
+let private errInnerType shouldGenerateNonValidation =
   DU {
       Name = errInnerTypeName
       Docs = summary "Input binding error"
       Cases =
           [
               {
-                  CaseName = Some errInnerGiraffeBinding
-                  Docs = summary "Giraffe returned a Result.Error from tryBindXXX"
-                  Kind = Prim <| PrimTypeKind.String (StringFormat.String None)
-              }
-              {
-                  CaseName = Some errInnerFormatterBindingExn
-                  Docs = summary "Exception occurred during IFormatter bind"
-                  Kind = BuiltIn "exn"
-              }
-              {
                   CaseName = Some errInnerValidationError
                   Docs = summary "Bound argument is not valid"
                   Kind = TypeKind.Array (BuiltIn "ValidationResult", None, None)
               }
-              {
-                  CaseName = Some errInnerCombined
-                  Docs = summary "Multiple errors occurred in one location"
-                  Kind = TypeKind.Array (DU { Name = errInnerTypeName; Docs = None; Cases = [] }, None, None)
-              }
+              if shouldGenerateNonValidation then
+                  {
+                      CaseName = Some errInnerGiraffeBinding
+                      Docs = summary "Giraffe returned a Result.Error from tryBindXXX"
+                      Kind = Prim <| PrimTypeKind.String (StringFormat.String None)
+                  }
+                  {
+                      CaseName = Some errInnerFormatterBindingExn
+                      Docs = summary "Exception occurred during IFormatter bind"
+                      Kind = BuiltIn "exn"
+                  }
+                  {
+                      CaseName = Some errInnerCombined
+                      Docs = summary "Multiple errors occurred in one location"
+                      Kind = TypeKind.Array (DU { Name = errInnerTypeName; Docs = None; Cases = [] }, None, None)
+                  }
           ]
   }
 let errOuterTypeName = "ArgumentLocationedError"
@@ -44,7 +45,7 @@ let errOuterBody = "BodyBindingError"
 let errOuterQuery = "QueryBindingError"
 let errOuterPath = "PathBindingError"
 let errOuterCombined = "CombinedArgumentLocationError"
-let private errOuterType =
+let private errOuterType errInnerType =
   DU {
       Name = errOuterTypeName
       Docs = summary "Location argument error"
@@ -95,13 +96,27 @@ let private letSep =
               )
       )
 
-let private innerErrToStringDecl =
+let private innerErrToStringDecl shouldGenerateNonValidation =
   letDecl true innerErrToStringName [levelParam; valueParam] None
   ^ letSep
   ^ simpleValueMatching valueParam
     [
-        errInnerGiraffeBinding, err, sprintfExpr "%sGiraffe binding error: %s" [identExpr sepVar; identExpr err]
-        errInnerFormatterBindingExn, err, longIdentExpr (sprintf "%s.Message" err)
+        if shouldGenerateNonValidation then
+            errInnerGiraffeBinding, err, sprintfExpr "%sGiraffe binding error: %s" [identExpr sepVar; identExpr err]
+            errInnerFormatterBindingExn, err, longIdentExpr (sprintf "%s.Message" err)
+            errInnerCombined, err,
+                sprintfExpr "%sMultiple errors:\\n%s"
+                ^ [identExpr sepVar
+                   app
+                    (String.concatExpr "\\n")
+                    (
+                        app // Seq.map (recCall (level + 1))
+                            (app (longIdentExpr "Seq.map") (paren(app (identExpr innerErrToStringName) (paren(nextLevel)))))
+                            (identExpr err)
+                        |> paren
+                    )
+                   |> paren
+                ]
         errInnerValidationError, err,
             letExpr "errStrings" []
                 (
@@ -146,19 +161,6 @@ let private innerErrToStringDecl =
                                     ^|> sprintfExpr "%sValidation errors:%s%s" [identExpr sepVar; identExpr "sepInner"]
                                 )
                 )
-        errInnerCombined, err,
-            sprintfExpr "%sMultiple errors:\\n%s"
-            ^ [identExpr sepVar
-               app
-                (String.concatExpr "\\n")
-                (
-                    app // Seq.map (recCall (level + 1))
-                        (app (longIdentExpr "Seq.map") (paren(app (identExpr innerErrToStringName) (paren(nextLevel)))))
-                        (identExpr err)
-                    |> paren
-                )
-               |> paren
-            ]
     ]
 
 let private callInnerWithFormat format var =
@@ -207,14 +209,15 @@ let private tryExtractErrorDecl =
                 ^ app (identExpr "Some") (identExpr "err") 
         ]
 
-let typeSchemas =
-    [ errInnerTypeName, errInnerType
-      errOuterTypeName, errOuterType ]
+let typeSchemas shouldGenerateNonValidation =
+    let inner = errInnerType shouldGenerateNonValidation
+    [ errInnerTypeName, inner
+      errOuterTypeName, errOuterType inner ]
     |> List.map (fun (name, kind) -> { DefaultValue = None; Name = name; Kind = kind; Docs = None })
 
-let generateHelperFunctions () =
+let generateHelperFunctions shouldGenerateNonValidation =
     [
-        innerErrToStringDecl
+        innerErrToStringDecl shouldGenerateNonValidation
         outerErrToStringDecl
         tryExtractErrorDecl
     ]
