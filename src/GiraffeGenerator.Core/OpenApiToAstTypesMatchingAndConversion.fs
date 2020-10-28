@@ -1,6 +1,5 @@
 ﻿module OpenApiToAstTypesMatchingAndConversion
 
-open System.Collections.Generic
 open System.Globalization
 open AST
 open ASTExt
@@ -137,78 +136,6 @@ let getOwnName kind def =
     | Object o -> o.Name
     | _ -> None
     |> Option.defaultWith def
-
-/// extract record definitions from
-let extractRecords (schemas: TypeSchema list) =
-    // store name and fields of records here
-    let recordsDict =
-        Dictionary<string, SynField list * Docs option>()
-    // store name and cases of records here
-    let duDict =
-        Dictionary<string, (string * SynType * PreXmlDoc) list * Docs option>()
-    
-    let rec extractSynType (name: string, kind: TypeKind) =
-        match kind with
-        | Prim primType -> primTypeMatch primType
-        | BuiltIn builtIn -> synType builtIn
-        | Array (innerType, _, _) -> arrayOf (extractSynType (getOwnName innerType (fun () -> name), innerType))
-        | Option innerType -> optionOf (extractSynType (getOwnName innerType (fun () -> name), innerType))
-        | Object objectKind ->
-            let name = getOwnName kind ^ fun _ -> name
-            // extract field types
-            let fields =
-                objectKind.Properties
-                |> List.map (fun (fieldName, fieldKind, def) ->
-                    extractSynType (fieldName, fieldKind)
-                    |> field fieldName)
-
-            // add name and fields for later
-            if not ^ recordsDict.ContainsKey name then
-                recordsDict.Add(name, (fields, objectKind.Docs))
-
-            // return SynType with record name
-            synType name
-        | DU du ->
-            let cases =
-                du.Cases
-                |> List.mapi
-                   (
-                       fun idx case ->
-                           let name = case.CaseName |> Option.defaultWith (fun _ -> sprintf "Case%d" (idx + 1))
-                           let subtypeName = getOwnName case.Kind (fun _ -> name + "CaseValue")
-                           name,
-                           extractSynType(subtypeName, case.Kind),
-                           xml case.Docs
-                   )
-            if cases.Length > 0 && not ^ duDict.ContainsKey du.Name then
-                duDict.Add(du.Name, (cases, du.Docs))
-            synType name
-        | NoType -> failwith "Field without types are not supported for record schemas"
-
-    // iterate through schemas
-    // records will be stored in dictionary as a side effect
-    for schema in schemas do
-        extractSynType (schema.Name, schema.Kind)
-        |> ignore
-    
-    // create final DU expressions
-    let dus =    
-        duDict
-        |> Seq.map
-        ^ fun (KeyValue(name, (cases, docs))) ->
-            discriminatedUnion (xml docs) name cases
-
-    // create final record expressions
-    let records =
-        recordsDict
-        |> Seq.map
-        ^ fun (KeyValue (name, (fields, docs))) ->
-            let xmlDocs = xml docs
-            record xmlDocs name fields
-    
-    dus
-    |> Seq.append records
-    |> Seq.toList
     
 [<Struct>]
 type GeneratedOptionalTypeMappingNameKind =
