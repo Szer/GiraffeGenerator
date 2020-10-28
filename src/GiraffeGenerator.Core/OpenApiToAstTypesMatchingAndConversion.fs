@@ -51,16 +51,16 @@ let strFormatDefaultMatch =
 
 let strFormatNodaTimeDateTimeMatch =
     function
-    | DateTimeGeneratedType.ZonedDateTime -> nodaTypes.ZonedDateTime
-    | DateTimeGeneratedType.OffsetDateTime -> nodaTypes.OffsetDateTime
-    | DateTimeGeneratedType.LocalDateTime -> nodaTypes.LocalDateTime
-    | DateTimeGeneratedType.Instant -> nodaTypes.Instant
+    | Configuration.DateTimeGeneratedType.ZonedDateTime -> nodaTypes.ZonedDateTime
+    | Configuration.DateTimeGeneratedType.OffsetDateTime -> nodaTypes.OffsetDateTime
+    | Configuration.DateTimeGeneratedType.LocalDateTime -> nodaTypes.LocalDateTime
+    | Configuration.DateTimeGeneratedType.Instant -> nodaTypes.Instant
 
-let strFormatNodaTimeMatch config =
+let strFormatNodaTimeMatch =
     function
     | Custom "local-date"
     | DateString -> Some nodaTypes.LocalDate
-    | DateTimeString -> strFormatNodaTimeDateTimeMatch config.MapDateTimeInto |> Some
+    | DateTimeString -> strFormatNodaTimeDateTimeMatch Configuration.value.MapDateTimeInto |> Some
     | Custom "instant" -> Some nodaTypes.Instant
     | Custom "time"
     | Custom "local-time" -> Some nodaTypes.LocalTime
@@ -75,29 +75,28 @@ let strFormatNodaTimeMatch config =
     | Custom "date-time-zone" -> Some nodaTypes.DateTimeZone
     | _ -> None
     
-let strFormatMatch config format =
-    Some config
+let strFormatMatch format =
+    Some Configuration.value
     |> Option.filter ^ fun x -> x.UseNodaTime
-    |> Option.map strFormatNodaTimeMatch
-    |> Option.bind ^ (|>) format
+    |> Option.bind (fun _ -> strFormatNodaTimeMatch format)
     |> Option.defaultWith ^ fun _ -> strFormatDefaultMatch format
 
 /// matching OpenAPI primitive type IR to SynType
-let primTypeMatch config =
+let primTypeMatch =
     function
     | Any -> objType
     | Int -> intType
     | PrimTypeKind.Long -> int64Type
     | PrimTypeKind.Double -> doubleType
     | Bool -> boolType
-    | PrimTypeKind.String strFormat -> strFormatMatch config strFormat
+    | PrimTypeKind.String strFormat -> strFormatMatch strFormat
 
 /// matching type kinds in responses to create their syntatic types
-let rec extractResponseSynType config externalName =
+let rec extractResponseSynType externalName =
     function
-    | Prim primType -> primTypeMatch config primType
-    | Array (innerType, _) -> arrayOf (extractResponseSynType config externalName innerType)
-    | Option innerType -> optionOf (extractResponseSynType config externalName innerType)
+    | Prim primType -> primTypeMatch primType
+    | Array (innerType, _) -> arrayOf (extractResponseSynType externalName innerType)
+    | Option innerType -> optionOf (extractResponseSynType externalName innerType)
     | BuiltIn builtIn -> synType builtIn
     | Object { Name = Some name } -> synType name
     | Object _ when (Option.isSome externalName) -> synType (Option.get externalName)
@@ -105,7 +104,7 @@ let rec extractResponseSynType config externalName =
         let fields =
             anonObject.Properties
             |> List.map
-            ^ fun (name, typeKind, def) -> AST.ident name, extractResponseSynType config (Some name) typeKind
+            ^ fun (name, typeKind, def) -> AST.ident name, extractResponseSynType (Some name) typeKind
 
         if fields.IsEmpty then objType else anonRecord fields
     | DU du -> synType du.Name
@@ -129,7 +128,7 @@ let getOwnName kind def =
     |> Option.defaultWith def
 
 /// extract record definitions from
-let extractRecords config (schemas: TypeSchema list) =
+let extractRecords (schemas: TypeSchema list) =
     // store name and fields of records here
     let recordsDict =
         Dictionary<string, SynField list * Docs option>()
@@ -139,7 +138,7 @@ let extractRecords config (schemas: TypeSchema list) =
     
     let rec extractSynType (name: string, kind: TypeKind) =
         match kind with
-        | Prim primType -> primTypeMatch config primType
+        | Prim primType -> primTypeMatch primType
         | BuiltIn builtIn -> synType builtIn
         | Array (innerType, _) -> arrayOf (extractSynType (getOwnName innerType (fun () -> name), innerType))
         | Option innerType -> optionOf (extractSynType (getOwnName innerType (fun () -> name), innerType))
@@ -268,13 +267,12 @@ let generateOptionalType kind def nameFromSchema =
     generateOptionalTypeInternal kind def nameFromSchema
     |> snd
 
-let rec defaultToExpr config v =
-    let inline defaultToExpr v = defaultToExpr config v
+let rec defaultToExpr v =
     let inline cnst syn v =
         constExpr (syn v)
     match v with
     | DefaultableKind.Noda nt ->
-        if not config.UseNodaTime then
+        if not Configuration.value.UseNodaTime then
             failwith "No NodaTime types should be used if user doesn't ask for NodaTime"
         let calendarSystem (s: NodaTime.CalendarSystem) =
             app (longIdentExpr "NodaTime.CalendarSystem.ForId") (strExpr s.Id)
@@ -405,16 +403,16 @@ let rec defaultToExpr config v =
 /// where `fun (x[: Type]) -> [let v = ](mapping);[v]` are generated by generateDefaultMappingFun* family of functions
 /// and (mapping) itself is generated by generateDefaultMapping function 
 module rec DefaultsGeneration =
-    let private generateBestPossibleFunc config kind defaultsMap def nameFromSchema =
+    let private generateBestPossibleFunc kind defaultsMap def nameFromSchema =
         getOwnName kind ^ fun _ -> Unchecked.defaultof<string>
         |> Option.ofObj
         |> Option.map GeneratedType
         |> Option.map Map.tryFind
         |> Option.bind ((|>) defaultsMap)
-        |> Option.map (generateDefaultMappingFunFromMapping config defaultsMap def)
-        |> Option.defaultWith (fun _ -> generateDefaultMappingFunFromKind config defaultsMap kind def nameFromSchema)
+        |> Option.map (generateDefaultMappingFunFromMapping defaultsMap def)
+        |> Option.defaultWith (fun _ -> generateDefaultMappingFunFromKind defaultsMap kind def nameFromSchema)
     
-    let rec private generateDefaultMapping config defaultsMap source def nameFromSchema instanceName =
+    let rec private generateDefaultMapping defaultsMap source def nameFromSchema instanceName =
         let indented = longIdentExpr instanceName
         match source with
             | TypeKind.Object source ->
@@ -424,7 +422,7 @@ module rec DefaultsGeneration =
                         [
                             for name, kind, def in source.Properties do
                                 let propPath = instanceName + "." + name
-                                let hasDefaults, subMapping = generateDefaultMapping config defaultsMap kind def name propPath
+                                let hasDefaults, subMapping = generateDefaultMapping defaultsMap kind def name propPath
                                 hasDefaultProps <- hasDefaultProps || hasDefaults
                                 name, subMapping
                         ]
@@ -432,15 +430,15 @@ module rec DefaultsGeneration =
                     true, record
                 else false, indented
             | TypeKind.Array (item, def) ->
-                let hasDefaults, func = generateBestPossibleFunc config item defaultsMap def nameFromSchema
+                let hasDefaults, func = generateBestPossibleFunc item defaultsMap def nameFromSchema
                 if hasDefaults then
                     true, indented ^|> app (longIdentExpr "Array.map") func
                 else false, indented
             | TypeKind.Option v ->
                 if def.IsSome then
-                    true, indented ^|> Option.defaultValueExpr (defaultToExpr config def.Value)
+                    true, indented ^|> Option.defaultValueExpr (defaultToExpr def.Value)
                 else
-                    let hasDefaults, func = generateBestPossibleFunc config v defaultsMap def nameFromSchema
+                    let hasDefaults, func = generateBestPossibleFunc v defaultsMap def nameFromSchema
                     if hasDefaults then
                         true, indented ^|> Option.mapExpr func
                     else false, indented
@@ -450,20 +448,20 @@ module rec DefaultsGeneration =
                 else
                     false, indented
 
-    let private generateDefaultMappingFunFromKind config defaultsMap kind sourceDef nameFromSchema =
+    let private generateDefaultMappingFunFromKind defaultsMap kind sourceDef nameFromSchema =
         let param = "src"
-        let hasDefaults, recordExpr = generateDefaultMapping config defaultsMap kind sourceDef nameFromSchema param
-        hasDefaults, lambda (simplePats [SynSimplePat.Typed(simplePat param, extractResponseSynType config (Some nameFromSchema) kind, r)]) recordExpr
+        let hasDefaults, recordExpr = generateDefaultMapping defaultsMap kind sourceDef nameFromSchema param
+        hasDefaults, lambda (simplePats [SynSimplePat.Typed(simplePat param, extractResponseSynType (Some nameFromSchema) kind, r)]) recordExpr
 
-    let private generateDefaultMappingFunFromMapping config defaultsMap sourceDef (mapping: GeneratedOptionalTypeMapping) =
+    let private generateDefaultMappingFunFromMapping defaultsMap sourceDef (mapping: GeneratedOptionalTypeMapping) =
         let param = "src"
-        let hasDefaults, recordExpr = generateDefaultMapping config defaultsMap mapping.Generated sourceDef mapping.OriginalName param
+        let hasDefaults, recordExpr = generateDefaultMapping defaultsMap mapping.Generated sourceDef mapping.OriginalName param
         let bindWithTypeAndReturn =
             letExprComplex (SynPat.Typed(SynPat.Named(SynPat.Wild r, ident "v", false, None, r), synType mapping.OriginalName, r))
                 recordExpr (identExpr "v")
         hasDefaults, lambda (simplePats [SynSimplePat.Typed(simplePat param, synType mapping.GeneratedName, r)]) bindWithTypeAndReturn
         
-    let generateDefaultMappingFunFromSchema config defaultsMap mapping (schema: TypeSchema) =
-        let hasDefault, fn = generateDefaultMappingFunFromMapping config defaultsMap schema.DefaultValue mapping
+    let generateDefaultMappingFunFromSchema defaultsMap mapping (schema: TypeSchema) =
+        let hasDefault, fn = generateDefaultMappingFunFromMapping defaultsMap schema.DefaultValue mapping
         if hasDefault then fn
         else _id

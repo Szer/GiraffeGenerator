@@ -78,7 +78,7 @@ type PrimTypeKind =
         | Some "string", maybeStringFormat -> String(StringFormat.Parse maybeStringFormat)
         | _ -> failwithf "Unexpected type: %s and format: %A" typeKind format
         
-    member s.GetDefaultLiteral config (value: IOpenApiPrimitive) =
+    member s.GetDefaultLiteral (value: IOpenApiPrimitive) =
         let fw t = failwithf "%s literal has been found for non-%s type" t t
         let inline oneWay kind (value: ^v) (toDefault: ^t -> ^o) =
             match s with
@@ -87,14 +87,14 @@ type PrimTypeKind =
                 toDefault v
             | _ -> fw (value.GetType().Name)
         
-        let nodaMatch config =
+        let nodaMatch () =
             let inline matchDateTime dt =
                 let inline oneWay f = oneWay (String DateTimeString) dt (f >> Some)
-                match config.MapDateTimeInto with
-                | DateTimeGeneratedType.ZonedDateTime -> oneWay (NodaTime.ZonedDateTime.FromDateTimeOffset >> ZonedDateTime) 
-                | DateTimeGeneratedType.OffsetDateTime -> oneWay (NodaTime.OffsetDateTime.FromDateTimeOffset >> OffsetDateTime)
-                | DateTimeGeneratedType.LocalDateTime -> oneWay (fun dto -> NodaTime.LocalDateTime.FromDateTime dto.DateTime |> LocalDateTime)
-                | DateTimeGeneratedType.Instant -> oneWay (fun dto -> NodaTime.OffsetDateTime.FromDateTimeOffset(dto).ToInstant() |> Instant)
+                match Configuration.value.MapDateTimeInto with
+                | Configuration.DateTimeGeneratedType.ZonedDateTime -> oneWay (NodaTime.ZonedDateTime.FromDateTimeOffset >> ZonedDateTime) 
+                | Configuration.DateTimeGeneratedType.OffsetDateTime -> oneWay (NodaTime.OffsetDateTime.FromDateTimeOffset >> OffsetDateTime)
+                | Configuration.DateTimeGeneratedType.LocalDateTime -> oneWay (fun dto -> NodaTime.LocalDateTime.FromDateTime dto.DateTime |> LocalDateTime)
+                | Configuration.DateTimeGeneratedType.Instant -> oneWay (fun dto -> NodaTime.OffsetDateTime.FromDateTimeOffset(dto).ToInstant() |> Instant)
             match value with
             | :? OpenApiDateTime as dt -> matchDateTime dt
             | :? OpenApiDate as d -> oneWay (String DateString) d (NodaTime.LocalDate.FromDateTime >> LocalDate >> Some)
@@ -161,9 +161,9 @@ type PrimTypeKind =
                 | _ -> fw "string"
             | v -> failwith (sprintf "%A literals aren't supported for kind %A" v s)
         
-        Some config
+        Some Configuration.value
         |> Option.filter (fun c -> c.UseNodaTime)
-        |> Option.bind nodaMatch
+        |> Option.bind (fun _ -> nodaMatch())
         |> Option.map Noda
         |> Option.defaultWith defaultMatch
 
@@ -203,7 +203,7 @@ and ObjectKind =
             | TypeKind.Option v -> TypeKind.Option v
             | v -> TypeKind.Option v 
     
-    static member Create(config, schema: OpenApiSchema) =
+    static member Create(schema: OpenApiSchema) =
         let name =
             Option.ofObj schema.Reference
             |> Option.map (fun x -> x.Id)
@@ -211,7 +211,7 @@ and ObjectKind =
         let fields =
             [
                 for KeyValue(typeName, internalSchema) in schema.Properties ->
-                    let internalType, def = TypeKind.Parse config internalSchema
+                    let internalType, def = TypeKind.Parse internalSchema
                     let internalType = ObjectKind.OptionIfNotRequired (schema.Required.Contains typeName || def.IsSome) internalType
                     typeName, internalType, def
             ]
@@ -220,10 +220,10 @@ and ObjectKind =
           Properties = fields
           Docs = Docs.Create(schema.Description, null, schema.Example) }
         
-    static member Create(config, name: string, parameters: OpenApiParameter seq) =
+    static member Create(name: string, parameters: OpenApiParameter seq) =
         let fields =
             [ for param in parameters ->
-                let kind, def = TypeKind.Parse config param.Schema
+                let kind, def = TypeKind.Parse param.Schema
                 let kind = ObjectKind.OptionIfNotRequired (param.Required || def.IsSome) kind
                 param.Name, kind, def ]
             
@@ -253,13 +253,13 @@ and TypeKind =
     | DU of DUKind
     | BuiltIn of string
     | NoType
-    static member Parse config (schema: OpenApiSchema): TypeKind * DefaultableKind option =
+    static member Parse (schema: OpenApiSchema): TypeKind * DefaultableKind option =
         if isNull schema then Prim PrimTypeKind.Any, None
         else
             let kind, def =
                 match schema with
                 | ArrayKind items ->
-                    let arrItm, def = TypeKind.Parse config items
+                    let arrItm, def = TypeKind.Parse items
                     let isObj = match arrItm with | TypeKind.Object _ -> true | _ -> false 
                     if def.IsSome && isObj then
                         failwith "Default values aren't supported for entire objects"
@@ -268,10 +268,10 @@ and TypeKind =
                     if schema.Default <> null then
                         failwith "Default values aren't supported for entire objects"
                     else
-                        ObjectKind.Create(config, schema) |> Object, None
+                        ObjectKind.Create(schema) |> Object, None
                 | PrimKind primType ->
                     let prim = PrimTypeKind.Parse(primType, schema.Format)
-                    let def = schema.Default |> Option.ofObj |> Option.map (fun x -> x:?>IOpenApiPrimitive) |> Option.map (prim.GetDefaultLiteral config)
+                    let def = schema.Default |> Option.ofObj |> Option.map (fun x -> x:?>IOpenApiPrimitive) |> Option.map (prim.GetDefaultLiteral)
                     Prim prim, def
             if schema.Nullable && def.IsNone then
                 (Option kind), None
@@ -304,16 +304,16 @@ and TypeSchema =
                 Kind = kind
         }
     
-    static member Parse(config, name, schema: OpenApiSchema): TypeSchema =
-        let kind, def = TypeKind.Parse config schema
+    static member Parse(name, schema: OpenApiSchema): TypeSchema =
+        let kind, def = TypeKind.Parse schema
         { Name = name
           Kind = kind
           DefaultValue = def
           Docs = Docs.Create(schema.Description, null, schema.Example) }.DedupeTypeNames()
         
-    static member Parse(config, name, parameters: OpenApiParameter seq): TypeSchema =
+    static member Parse(name, parameters: OpenApiParameter seq): TypeSchema =
         { Name = name
-          Kind = TypeKind.Object (ObjectKind.Create (config, name, parameters))
+          Kind = TypeKind.Object (ObjectKind.Create (name, parameters))
           DefaultValue = None
           Docs = None }.DedupeTypeNames()
 
@@ -385,12 +385,12 @@ let inline private parseMediaType x =
     | Some x -> Other x
     | None -> failwith "Media type can't be null!"
     
-let private parseResponses config (operation: OpenApiOperation) =
+let private parseResponses (operation: OpenApiOperation) =
     [ for KeyValue(code, response) in operation.Responses do
         for KeyValue(mediaType, content) in response.Content do
             yield { Code = parseCode code
                     MediaType = parseMediaType mediaType
-                    Kind = TypeKind.Parse config content.Schema |> fst } ]
+                    Kind = TypeKind.Parse content.Schema |> fst } ]
 
 let private normalizeName =
     let regex = Regex("[_\.-]([a-z])", RegexOptions.Compiled)
@@ -401,14 +401,14 @@ let private normalizeName =
 
 /// Parse OpenApi document into our representation of it
 /// Returning API name and list of ParsedPaths
-let parse config (doc: OpenApiDocument): Api =
+let parse (doc: OpenApiDocument): Api =
 
     let title = doc.Info.Title.Replace(" ", "")
     
     let schemas =
         [ if not (isNull doc.Components) then
             for KeyValue(typeName, schema) in doc.Components.Schemas ->
-                TypeSchema.Parse(config, typeName, schema) ]
+                TypeSchema.Parse(typeName, schema) ]
 
     let paths =
         [ for KeyValue(route, path) in doc.Paths do
@@ -432,7 +432,7 @@ let parse config (doc: OpenApiDocument): Api =
                                 parameters
                                 |> Seq.groupBy (fun x -> Option.ofNullable x.In |> Option.defaultValue ParameterLocation.Query |> PayloadNonBodyLocation.FromParameterLocation)
                                 |> Seq.map (fun (location, parameters) ->
-                                    location, TypeSchema.Parse(config, methodName + opName + location.ToString(), parameters))
+                                    location, TypeSchema.Parse(methodName + opName + location.ToString(), parameters))
                                 |> Map
                             )
 
@@ -444,7 +444,7 @@ let parse config (doc: OpenApiDocument): Api =
                             |> Seq.map (fun (KeyValue(mt, body)) ->
                                 let mediaType = parseMediaType mt
                                 let name = opName + methodName + "Body" + mediaType.ToString()
-                                let schema = TypeSchema.Parse(config, name, body.Schema)
+                                let schema = TypeSchema.Parse(name, body.Schema)
                                 mediaType, schema)
                             |> Seq.toArray)
                         
@@ -455,7 +455,7 @@ let parse config (doc: OpenApiDocument): Api =
                                 for KeyValue(mediaType, content) in response.Content do
                                     { Code = parseCode code
                                       MediaType = parseMediaType mediaType
-                                      Kind = TypeKind.Parse config content.Schema |> fst }
+                                      Kind = TypeKind.Parse content.Schema |> fst }
                             else
                                 { Code = parseCode code
                                   MediaType = NotSpecified

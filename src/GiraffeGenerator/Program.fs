@@ -39,10 +39,10 @@ let main argv =
         |> Option.map
             (
                 function
-                | "zoned-date-time" -> DateTimeGeneratedType.ZonedDateTime
-                | "offset-date-time" -> DateTimeGeneratedType.OffsetDateTime
-                | "local-date-time" -> DateTimeGeneratedType.LocalDateTime
-                | "instant" -> DateTimeGeneratedType.Instant
+                | "zoned-date-time" -> Configuration.DateTimeGeneratedType.ZonedDateTime
+                | "offset-date-time" -> Configuration.DateTimeGeneratedType.OffsetDateTime
+                | "local-date-time" -> Configuration.DateTimeGeneratedType.LocalDateTime
+                | "instant" -> Configuration.DateTimeGeneratedType.Instant
                 | v -> failwithf "unknown date time mapping: %s" v 
             )
     
@@ -50,11 +50,10 @@ let main argv =
         if dateTimeType.IsSome then
             failwithf "%s may only be specified in conjunction with %s flag" mapDateTimeIntoSwitchName useNodaTimeSwitchName
     
-    let config =
-        {
+    Configuration.value <- {
             UseNodaTime = useNodaTime
             // the non-noda behavior is DateTimeOffset, so take the most similar as default
-            MapDateTimeInto = dateTimeType |> Option.defaultValue DateTimeGeneratedType.OffsetDateTime
+            MapDateTimeInto = dateTimeType |> Option.defaultValue Configuration.DateTimeGeneratedType.OffsetDateTime
             ModuleName = getOptionalArg argv "--module-name"
         }
     
@@ -64,10 +63,10 @@ let main argv =
         |> Seq.map (fun err -> sprintf "%s (at %s)" err.Message err.Pointer)
         |> String.concat "\n"
         |> failwith
-    let api = parse config doc
+    let api = parse doc
     
     let resultSource =
-        giraffeAst config api
+        giraffeAst api
         |> sourceCode
     File.WriteAllText(outputFile, resultSource)
     

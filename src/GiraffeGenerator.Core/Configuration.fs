@@ -1,4 +1,4 @@
-﻿[<AutoOpen>]
+﻿[<RequireQualifiedAccess>]
 module Configuration
 
 type DateTimeGeneratedType =
@@ -14,3 +14,7 @@ type Configuration =
         ModuleName: string option
     }
 
+let mutable value =
+    { UseNodaTime = false
+      MapDateTimeInto = OffsetDateTime
+      ModuleName = None }
