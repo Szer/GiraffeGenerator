@@ -118,14 +118,17 @@ let abstractGetterDfn docs name returnType: SynMemberDefn =
     abstractDfn docs MemberKind.PropertyGet propertyVal name returnType
 
 /// Expression for creating single attribute
-let attr name: SynAttributeList =
+let attrComplex name arg: SynAttributeList =
     { Attributes =
           [ { TypeName = longIdentWithDots name
-              ArgExpr = unitExpr
+              ArgExpr = arg
               Target = None
               AppliesToGetterAndSetter = false
               Range = r } ]
       Range = r }
+/// Expression for creating single attribute
+let attr name: SynAttributeList =
+    attrComplex name unitExpr
 
 /// Type declaration with provided type name and members
 let abstractClassDecl name members =
