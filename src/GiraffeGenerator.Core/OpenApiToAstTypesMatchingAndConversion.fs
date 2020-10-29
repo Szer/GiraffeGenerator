@@ -109,7 +109,18 @@ let rec extractResponseSynType externalName =
         if fields.IsEmpty then objType else anonRecord fields
     | DU du -> synType du.Name
     | NoType -> unitType
-
+    
+let rec extractBodyBindingSynType defaultTypeName nameFromSchema kind =
+    match defaultTypeName with
+    | None -> extractResponseSynType (Some nameFromSchema) kind
+    | Some generatedName ->
+        let rec extract kind =
+            match kind with
+            | Array (kind, _, _) -> extract kind |> arrayOf
+            | Option kind -> extract kind |> optionOf
+            | Object _ -> synType generatedName
+            | _ -> failwith "no generated name can exist for non-object type"
+        extract kind
 /// Creating AST XML docs from API representation
 let xml: Docs option -> PreXmlDoc =
     function

@@ -559,7 +559,12 @@ let giraffeAst (api: Api) =
                                                     | v -> failwithf "Content type %A is not supported" v
                                                     |> longIdentExpr
                                                 // add type parameter to the chosen method
-                                                let typeApp = typeApp expr [bodyInputForBindingMapping |> Option.map (fun v -> v.GeneratedName) |> Option.defaultValue bodySchema.Name |> synType]
+                                                let typeApp =
+                                                    let generatedName =
+                                                        bodyInputForBindingMapping
+                                                        |> Option.map (fun v -> v.GeneratedName)
+                                                    let bindingType = extractBodyBindingSynType generatedName bodySchema.Name bodySchema.Kind
+                                                    typeApp expr [bindingType]
                                                 // and call it without arguments
                                                 let call = app typeApp (tupleExpr [])
                                                 // and let-bind it and wrap binding into Result<_,_> 
