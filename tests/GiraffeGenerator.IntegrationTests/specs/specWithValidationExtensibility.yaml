@@ -1,0 +1,32 @@
+openapi: "3.0.0"
+info:
+  title: Spec with a simple validated argument for extensibility testing
+  version: 1
+paths:
+  /test-validation:
+    get:
+      tags:
+        - search
+      summary: >-
+        Used to test validation
+      operationId: TestValidation
+      parameters:
+        - name: maxLengthRestrictedTo8String
+          schema:
+            type: string
+            maxLength: 8
+          in: query
+          required: true
+      responses:
+        '200':
+          description: object is valid
+          content:
+            application/json:
+              schema:
+                type: string
+        '400':
+          description: object is invalid
+          content:
+            application/json:
+              schema:
+                type: string
