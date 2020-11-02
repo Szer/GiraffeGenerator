@@ -206,15 +206,15 @@ let letHttpHandlerDecl name expr =
     letDecl false name [] (Some "HttpHandler") (lambdaFunNextCtxExpr expr)
 
 /// Expression for calling:
-/// ctx.GetService<Service>()
-let getServiceCall =
+/// ctx.GetService<{service}>()
+let getAnyServiceCall throwOnNull service =
     SynExpr.App
         (ExprAtomicFlag.Atomic,
          false,
          SynExpr.TypeApp
-             (SynExpr.LongIdent(false, longIdentWithDots "ctx.GetService", None, r),
+             (SynExpr.LongIdent(false, longIdentWithDots (if throwOnNull then "ctx.GetService" else "ctx.RequestServices.GetService"), None, r),
               r,
-              [ SynType.LongIdent(longIdentWithDots "Service") ],
+              [ service ],
               [],
               None,
               r,
@@ -258,9 +258,13 @@ let letExpr name parameters body next =
         next
 
 /// Let expression with continuation for calling:
+/// let service = ctx.GetService<{service}>() in {NEXT}
+let letGetAnyServiceDecl bindingName throwOnNull service next =
+    letExpr bindingName [] (getAnyServiceCall throwOnNull service) next
+    
+/// Let expression with continuation for calling:
 /// let service = ctx.GetService<Service>() in {NEXT}
-let letGetServiceDecl next =
-    letExpr "service" [] getServiceCall next
+let letGetServiceDecl = SynType.LongIdent(longIdentWithDots "Service") |> letGetAnyServiceDecl "service" true
 
 let private ifThenElseExpr cond ifTrue ifFalse =
     SynExpr.IfThenElse(cond, ifTrue, ifFalse, DebugPointForBinding.NoDebugPointAtInvisibleBinding, false, r, r)

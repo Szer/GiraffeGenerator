@@ -207,6 +207,7 @@ let giraffeAst (api: Api) =
           openDecl "Giraffe"
           openDecl "System.Threading.Tasks"
           openDecl "Microsoft.AspNetCore.Http"
+          openDecl "Microsoft.Extensions.DependencyInjection"
           
           let temporarySchemasForBindingBeforeDefaultsAppliance =
               [ for path in api.Paths do
