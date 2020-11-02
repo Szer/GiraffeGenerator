@@ -5,6 +5,7 @@ open CodeGenValidation_Types
 open CodeGenValidation_Types.Enumeration
 open CodeGenValidation_TypeGeneration
 open CodeGenValidation_TypeGeneration.ExtensionPoints
+open CodeGenValidation_InstanceGeneration
 open CodeGenValidation_LogicGeneration
 
 /// gets all validation attributes to be used in API
@@ -47,3 +48,5 @@ let generateModuleLevelDeclarations api =
 /// {resultExpr} |> Result.bind (bindValidation (isValueValid [|{attribute instances for this value}|]) ctx {location})
 /// for any other kind of value
 let bindValidationIntoResult = bindValidationIntoResult
+
+let getValidationAttributesForProperty = getValidationAttributesForProperty

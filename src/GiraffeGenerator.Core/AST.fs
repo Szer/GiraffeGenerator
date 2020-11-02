@@ -517,8 +517,8 @@ let nodaTypes =
 
 /// Expression for field in records
 /// {name}: {fieldType}
-let field name fieldType =
-    SynField.Field([], false, Some(ident name), fieldType, false, PreXmlDoc.Empty, None, r)
+let field attributes name fieldType =
+    SynField.Field(attributes, false, Some(ident name), fieldType, false, PreXmlDoc.Empty, None, r)
    
 /// Tuple pattern (for arg list or matching) 
 let tuplePatComplex args =

@@ -96,3 +96,12 @@ let getValidationAttributeConstructionForKind expr kind =
         let attrConstruction = List.map snd expressions
         if attrConstruction.IsEmpty then None
         else (isSpecialCased, SynExpr.ArrayOrList(true, attrConstruction, r)) |> Some
+
+let getValidationAttributesForProperty kind =
+    [
+        for attr in enumeratePropertyValidation false kind do
+            let def = getAttributeUsageDefinitionForAttribute attr
+            if def.IsSome then
+                let attrName, args = def.Value 
+                attrComplex attrName (if args.IsEmpty then unitExpr else tupleComplexExpr args)
+    ]

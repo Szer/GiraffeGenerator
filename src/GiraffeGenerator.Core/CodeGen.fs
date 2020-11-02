@@ -220,7 +220,7 @@ let extractRecords (schemas: TypeSchema list) =
                 objectKind.Properties
                 |> List.map (fun (fieldName, fieldKind, def) ->
                     extractSynType (fieldName, fieldKind)
-                    |> field fieldName)
+                    |> field (CodeGenValidation.getValidationAttributesForProperty fieldKind) fieldName)
 
             // add name and fields for later
             if not ^ recordsDict.ContainsKey name then
