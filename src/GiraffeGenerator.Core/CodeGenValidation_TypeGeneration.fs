@@ -201,3 +201,50 @@ let generateAttributeDefinitionFor value =
         generateAttributeForSpecialCasedValidationType specialCased
         |> Some
     | BuiltInAttribute _ -> None
+
+
+/// Validation extensibility is accomplished by the interfaces below.
+/// To customize validation, user has to implement any of those interfaces for bound model types
+/// E.g. for types resulted by default application before type combining
+module ExtensionPoints =
+    let private generateValidationInterface name summary generic methodName methodType =
+        let docs = xmlDocs [[sprintf "<summary>%s</summary>" summary]]
+        
+        let componentInfo =
+            SynComponentInfo.ComponentInfo
+                ([attr "Interface"], [TyparDecl([], generic)], [], longIdent name, docs, false, None, r)
+        
+        let methodDefn = abstractMemberDfn xmlEmpty methodName methodType
+            
+        let objModel =
+            SynTypeDefnRepr.ObjectModel(SynTypeDefnKind.TyconUnspecified, [methodDefn], r)
+
+        TypeDefn(componentInfo, objModel, [], r)
+
+    let validationReplacerInterface = "IGiraffeValidator"
+    /// [<Interface>]
+    /// /// <summary> replaces any generated validation rules for type </summary>
+    /// type IGiraffeValidator<'model> =
+    ///     abstract member Validate: 'model * ValidationContext -> ValidationResult array
+    let generateValidationReplacerInterface () =
+        let generic = Typar(ident "model", NoStaticReq, false)
+        let sign = tuple [SynType.Var(generic, r); synType "ValidationContext"] ^-> genericType true "array" [synType "ValidationResult"]
+        generateValidationInterface validationReplacerInterface "replaces any generated validation rules for type" generic "Validate" sign
+        
+    let validationAugmenterInterface = "IGiraffeAdditionalValidator"
+    /// [<Interface>]
+    /// /// <summary> augments generated validation rules </summary>
+    /// type IGiraffeAdditionalValidator<'model> =
+    ///    abstract member Validate: 'model * ValidationContext -> ValidationResult array
+    let generateValidationAugmenterInterface () =
+        let generic = Typar(ident "model", NoStaticReq, false)
+        let sign = tuple [SynType.Var(generic, r); synType "ValidationContext"] ^-> genericType true "array" [synType "ValidationResult"]
+        generateValidationInterface validationAugmenterInterface "replaces any generated validation rules for type" generic "Validate" sign
+      
+    // maybe later:  
+    (*
+    [<Interface>]
+    /// <summary> augments any validation rules with model verification </summary>
+    type IGiraffeVerifier<'model> =
+        abstract member Verify: 'model * ValidationContext -> Task<ValidationResult array>
+    *)

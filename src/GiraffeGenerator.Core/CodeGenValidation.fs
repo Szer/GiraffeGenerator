@@ -4,6 +4,7 @@ open OpenApi
 open CodeGenValidation_Types
 open CodeGenValidation_Types.Enumeration
 open CodeGenValidation_TypeGeneration
+open CodeGenValidation_TypeGeneration.ExtensionPoints
 
 /// gets all validation attributes to be used in API
 let private decideWhichValidationIsBeingUsed api =
@@ -26,4 +27,8 @@ let generateModuleLevelDeclarations api =
             let attrOption = generateAttributeDefinitionFor validationType
             if attrOption.IsSome then
                 attrOption.Value
+        generateValidationReplacerInterface()
+        let hasGeneratedValidationRules = usedValidationTypes.Length > 0
+        if hasGeneratedValidationRules then
+            generateValidationAugmenterInterface()
     ]
