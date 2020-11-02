@@ -27,7 +27,7 @@ It's still in early stage of development, so mostly basic features are being sup
    - [ ] `allOf` support
    - [ ] `discriminator` support
    - [x] `not` *won't be supported*
-   - [ ] validation support (#33)
+   - [x] validation support (#33)
    - [x] NodaTime support opt-in (#32)
 - [x] Multiple responses from one endpoint
 - [ ] Creating endpoints with support for bindings
@@ -56,6 +56,12 @@ It's still in early stage of development, so mostly basic features are being sup
 ```
 - Build project to generate the file
 - Implement interface defined in this file and register your implementation in AspNetCore DI
+- If you want to customize validation for some or all of your models, you have two extension points:
+  - `IGiraffeValidator<'model>` - replaces all generated validation for the `'model` type.
+    Note: doesn't replace the validation for nested complex types (objects, arrays, options).
+    Provide an implementation for them explicitely if you want to replace validation for them too.
+  - `IGiraffeAdditionalValidator<'model>` - adds more validation
+    to either `IGiraffeValidator<'model>` or generated validation
 - May require serializer configuration to support mapping of absent and null values from/to Optionon<_>
 - May require serializer configuration to throw on absent required properties
 
