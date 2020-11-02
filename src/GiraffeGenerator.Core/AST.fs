@@ -290,6 +290,11 @@ let taskBuilder body =
 /// return! {expr}
 let returnBang expr =
     SynExpr.YieldOrReturnFrom((false, true), expr, r)
+
+/// Expression for YieldFrom (yield!) with continuation:
+/// yield! {expr}
+let yieldBang expr =
+    SynExpr.YieldOrReturnFrom((true, true), expr, r)
     
 /// Expression for Return (return) with continuation:
 /// return {expr}
