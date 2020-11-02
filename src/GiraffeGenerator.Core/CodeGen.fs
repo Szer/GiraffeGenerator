@@ -258,15 +258,31 @@ let giraffeAst (api: Api) =
                             generateCombinedRecordTypeDefnFor method.OtherParameters.Value name]
 
           if not allSchemas.IsEmpty then
-              yield! [                    
-                 if validationErrorsPossible then
-                    types (CodeGenValidation.generateModuleLevelDeclarations api)
+              yield! [
+                 let validation =
+                     if not validationErrorsPossible then
+                        None
+                     else
+                        CodeGenValidation.generateModuleLevelDeclarations api |> Some
+                    
+                 let validationTypes =
+                     validation
+                     |> Option.map fst
 
+                 if validationTypes.IsSome then
+                     validationTypes.Value
+                     |> Seq.toList
+                     |> types
+                    
                  types (extractRecords allSchemas)
 
                  if validationErrorsPossible || nonValidationErrorsPossible then
                      // generate helper functions for error handling
                      yield! CodeGenErrorsDU.generateHelperFunctions nonValidationErrorsPossible
+                 
+                 let validationFunctions = validation |> Option.map snd
+                 if (validationFunctions.IsSome) then
+                     yield! validationFunctions.Value
               ]
 
           abstractClassDecl
@@ -490,6 +506,7 @@ let giraffeAst (api: Api) =
                                             ^|> Result.mapExpr (DefaultsGeneration.generateDefaultMappingFunFromSchema temporarySchemasForBindingBeforeDefaultsApplianceMap v querySchema)
                                         // or just take raw binding if there are no defaults
                                         |> Option.defaultValue bindRaw
+                                        |> CodeGenValidation.bindValidationIntoResult CodeGenErrorsDU.errOuterQuery
                                     // and apply letExpr to generated binding to generate `let queryArgs = bindQuery()`, leaving continuation not applied 
                                     |> Option.map ^ letExpr queryBinding []
                                 
@@ -506,6 +523,7 @@ let giraffeAst (api: Api) =
                                                 let okCall = SynExpr.DotGet(res,r,longIdentWithDots "Ok",r)
                                                 // apply call to pathArgs
                                                 app okCall (identExpr "pathArgs")
+                                                |> CodeGenValidation.bindValidationIntoResult CodeGenErrorsDU.errOuterPath
                                         )
                                     // and apply letExpr to generated binding to generate `let pathArgs = bindPath()`, leaving continuation not applied 
                                     |> Option.map ^ letExpr pathBinding []
@@ -578,7 +596,8 @@ let giraffeAst (api: Api) =
                                                         bindRaw
                                                         ^|> Result.mapExpr (DefaultsGeneration.generateDefaultMappingFunFromSchema temporarySchemasForBindingBeforeDefaultsApplianceMap v bodySchema)
                                                     // or leave binding as is otherwise
-                                                    |> Option.defaultValue bindRaw
+                                                    |> Option.defaultValue bindRaw 
+                                                    |> CodeGenValidation.bindValidationIntoResult CodeGenErrorsDU.errOuterBody
                                                 // generate "with" section body of try..with: 
                                                 //   with e -> FormatterBindingException e
                                                 //   |> BodyBindingError
