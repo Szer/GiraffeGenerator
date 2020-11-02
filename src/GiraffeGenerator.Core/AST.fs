@@ -262,10 +262,16 @@ let letExpr name parameters body next =
 let letGetServiceDecl next =
     letExpr "service" [] getServiceCall next
 
+let private ifThenElseExpr cond ifTrue ifFalse =
+    SynExpr.IfThenElse(cond, ifTrue, ifFalse, DebugPointForBinding.NoDebugPointAtInvisibleBinding, false, r, r)
 /// If-Then-Else expression
 /// if {cond} then {ifTrue} else {ifFalse}
 let ifElseExpr cond ifTrue ifFalse =
-    SynExpr.IfThenElse(cond, ifTrue, Some ifFalse, DebugPointForBinding.NoDebugPointAtInvisibleBinding, false, r, r)
+    ifThenElseExpr cond ifTrue (Some ifFalse)
+/// If-Then-Else expression
+/// if {cond} then {ifTrue} else {ifFalse}
+let ifExpr cond ifTrue =
+    ifThenElseExpr cond ifTrue None
 
 /// LetBang! expression:
 /// let! {ident} = {expr} in {next}
