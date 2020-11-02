@@ -18,8 +18,8 @@
         else
             let subMessage = sprintf "%s %A" (if not boundary.Exclusive then "or equal to" else "") boundary.Value
             message subMessage |> Some
-    let inline private checkMinBoundary value = checkBoundary (>) (sprintf "should be greater than %s") value
-    let inline private checkMaxBoundary value = checkBoundary (<) (sprintf "should be lesser than %s") value
+    let inline private checkMinBoundary value = checkBoundary (<) (sprintf "should be greater than %s") value
+    let inline private checkMaxBoundary value = checkBoundary (>) (sprintf "should be lesser than %s") value
     
     let inline private checkMultipleOf value divisor =
         if value % divisor = LanguagePrimitives.GenericZero then None
