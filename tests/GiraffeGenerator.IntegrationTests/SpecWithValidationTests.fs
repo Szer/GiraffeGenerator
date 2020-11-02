@@ -682,10 +682,9 @@ type SpecWithValidationTests() =
         let! responseText = response.Content.ReadAsStringAsync()
         let responseText =
             // DataAnnotations.RangeAttribute produces message with ∞ for Infinity on Win10/win-latest/macos-latest.
-            // I assume this behavior is common for other OS from this families.
             // I (@bessgeor) don't think this is a really important difference to work-around in the code generated
             // So here is this ad-hoc and the note in README
-            if Environment.OSVersion.Platform <> PlatformID.Unix then
+            if responseText.Contains "∞" then
                 responseText.Replace("∞", "Infinity")
             else responseText
         let responseJson = JsonConvert.DeserializeObject<SpecWithValidation.validationErrorResponse>(responseText, jsonSettings)
