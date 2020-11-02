@@ -62,8 +62,9 @@ It's still in early stage of development, so mostly basic features are being sup
     Provide an implementation for them explicitely if you want to replace validation for them too.
   - `IGiraffeAdditionalValidator<'model>` - adds more validation
     to either `IGiraffeValidator<'model>` or generated validation
-- Note for people migrating from/to Windows OS: `System.ComponentModel.DataAnnotations.RangeAttribute` used
-  by validation produces a different text representation for Double.*Infinity on Windows: infinity unicode symbol (&#221E;) instead of "Infinity"
+- Note for people migrating from/to *nix: `System.ComponentModel.DataAnnotations.RangeAttribute` used
+  by validation produces a different text representation for Double.*Infinity on *nix:
+  "Infinity" instead of infinity unicode symbol (&#221E;)
 - May require serializer configuration to support mapping of absent and null values from/to Optionon<_>
 - May require serializer configuration to throw on absent required properties
 
