@@ -15,6 +15,7 @@
     <Compile Include="CodeGenErrorsDU.fs" />
     <Compile Include="CodeGenValidation_Types.fs" />
     <Compile Include="CodeGenValidation_TypeGeneration.fs" />
+    <Compile Include="CodeGenValidation.fs" />
     <Compile Include="CodeGen.fs" />
   </ItemGroup>
 

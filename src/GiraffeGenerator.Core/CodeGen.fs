@@ -257,7 +257,10 @@ let giraffeAst (api: Api) =
                             generateCombinedRecordTypeDefnFor method.OtherParameters.Value name]
 
           if not allSchemas.IsEmpty then
-              yield! [
+              yield! [                    
+                 if validationErrorsPossible then
+                    types (CodeGenValidation.generateModuleLevelDeclarations api)
+
                  types (extractRecords allSchemas)
 
                  if validationErrorsPossible || nonValidationErrorsPossible then
