@@ -630,6 +630,12 @@ let simpleValueMatching value cases =
     matchExpr value clauses
 
 
+let tryGetSingleExpression expressions =
+    let len = List.length expressions
+    if len = 0 then None
+    elif len = 1 then Some expressions.Head
+    else seqExprs expressions |> Some
+
 let inline appBinaryOpExpr op a b = app(appI (identExpr op) a) b
 let inline (^|>) a b = appBinaryOpExpr "op_PipeRight" a b
 let inline (^>>) a b = appBinaryOpExpr "op_ComposeRight" a b |> paren
