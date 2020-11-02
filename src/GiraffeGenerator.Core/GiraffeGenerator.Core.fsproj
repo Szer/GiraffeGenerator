@@ -13,6 +13,7 @@
     <Compile Include="OpenApi.fs" />
     <Compile Include="OpenApiToAstTypesMatchingAndConversion.fs" />
     <Compile Include="CodeGenErrorsDU.fs" />
+    <Compile Include="CodeGenValidation_Types.fs" />
     <Compile Include="CodeGen.fs" />
   </ItemGroup>
 
