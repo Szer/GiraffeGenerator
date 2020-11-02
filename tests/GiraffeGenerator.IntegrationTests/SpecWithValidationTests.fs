@@ -356,40 +356,40 @@ module ValidationCases =
                 queryResponse [| "floatBetween8ExclusiveAnd64Exclusive" |] [| "The field floatBetween8ExclusiveAnd64Exclusive must be between 8.00000001 and 63.99999999." |],
                 { x with floatBetween8ExclusiveAnd64Exclusive = 64. }
             """floatGTE8 = 7.99999999 """, fun x ->
-                queryResponse [| "floatGTE8" |] [| "The field floatGTE8 must be between 8 and ∞." |],
+                queryResponse [| "floatGTE8" |] [| "The field floatGTE8 must be between 8 and Infinity." |],
                 { x with floatGTE8 = 7.99999999 }
             """floatGTE8 = Double.MinValue """, fun x ->
-                queryResponse [| "floatGTE8" |] [| "The field floatGTE8 must be between 8 and ∞." |],
+                queryResponse [| "floatGTE8" |] [| "The field floatGTE8 must be between 8 and Infinity." |],
                 { x with floatGTE8 = Double.MinValue }
             """floatGTE8 = Double.NegativeInfinity """, fun x ->
-                queryResponse [| "floatGTE8" |] [| "The field floatGTE8 must be between 8 and ∞." |],
+                queryResponse [| "floatGTE8" |] [| "The field floatGTE8 must be between 8 and Infinity." |],
                 { x with floatGTE8 = Double.NegativeInfinity }
             """floatGT8 = 8. """, fun x ->
-                queryResponse [| "floatGT8" |] [| "The field floatGT8 must be between 8.00000001 and ∞." |],
+                queryResponse [| "floatGT8" |] [| "The field floatGT8 must be between 8.00000001 and Infinity." |],
                 { x with floatGT8 = 8. }
             """floatGT8 = Double.MinValue """, fun x ->
-                queryResponse [| "floatGT8" |] [| "The field floatGT8 must be between 8.00000001 and ∞." |],
+                queryResponse [| "floatGT8" |] [| "The field floatGT8 must be between 8.00000001 and Infinity." |],
                 { x with floatGT8 = Double.MinValue }
             """floatGT8 = Double.NegativeInfinity """, fun x ->
-                queryResponse [| "floatGT8" |] [| "The field floatGT8 must be between 8.00000001 and ∞." |],
+                queryResponse [| "floatGT8" |] [| "The field floatGT8 must be between 8.00000001 and Infinity." |],
                 { x with floatGT8 = Double.NegativeInfinity }
             """floatLTE64 = 64.00000001 """, fun x ->
-                queryResponse [| "floatLTE64" |] [| "The field floatLTE64 must be between -∞ and 64." |],
+                queryResponse [| "floatLTE64" |] [| "The field floatLTE64 must be between -Infinity and 64." |],
                 { x with floatLTE64 = 64.00000001 }
             """floatLTE64 = Double.MaxValue """, fun x ->
-                queryResponse [| "floatLTE64" |] [| "The field floatLTE64 must be between -∞ and 64." |],
+                queryResponse [| "floatLTE64" |] [| "The field floatLTE64 must be between -Infinity and 64." |],
                 { x with floatLTE64 = Double.MaxValue }
             """floatLTE64 = Double.PositiveInfinity """, fun x ->
-                queryResponse [| "floatLTE64" |] [| "The field floatLTE64 must be between -∞ and 64." |],
+                queryResponse [| "floatLTE64" |] [| "The field floatLTE64 must be between -Infinity and 64." |],
                 { x with floatLTE64 = Double.PositiveInfinity }
             """floatLT64 = 64. """, fun x ->
-                queryResponse [| "floatLT64" |] [| "The field floatLT64 must be between -∞ and 63.99999999." |],
+                queryResponse [| "floatLT64" |] [| "The field floatLT64 must be between -Infinity and 63.99999999." |],
                 { x with floatLT64 = 64. }
             """floatLT64 = Double.MaxValue """, fun x ->
-                queryResponse [| "floatLT64" |] [| "The field floatLT64 must be between -∞ and 63.99999999." |],
+                queryResponse [| "floatLT64" |] [| "The field floatLT64 must be between -Infinity and 63.99999999." |],
                 { x with floatLT64 = Double.MaxValue }
             """floatLT64 = Double.PositiveInfinity """, fun x ->
-                queryResponse [| "floatLT64" |] [| "The field floatLT64 must be between -∞ and 63.99999999." |],
+                queryResponse [| "floatLT64" |] [| "The field floatLT64 must be between -Infinity and 63.99999999." |],
                 { x with floatLT64 = Double.PositiveInfinity }
         |]
     let private validQueryVariations = enumerateValidVariations validQuery validQueryForkers
@@ -680,6 +680,14 @@ type SpecWithValidationTests() =
         let url = toUrlString pnq
         let! response = client.PostAsync(url, content)
         let! responseText = response.Content.ReadAsStringAsync()
+        let responseText =
+            // DataAnnotations.RangeAttribute produces message with ∞ for Infinity on Win10.
+            // I assume this is the common MS OS behavior.
+            // I (@bessgeor) don't think this is a really important difference to work-around in the code generated
+            // So here is this ad-hoc and the note in README
+            if Environment.OSVersion.Platform <> PlatformID.Unix && Environment.OSVersion.Platform <> PlatformID.MacOSX then
+                responseText.Replace("∞", "Infinity")
+            else responseText
         let responseJson = JsonConvert.DeserializeObject<SpecWithValidation.validationErrorResponse>(responseText, jsonSettings)
         do Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode)
         do Assert.Equal(err, responseJson)
