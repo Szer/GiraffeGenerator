@@ -63,6 +63,7 @@
     <Compile Include="SpecWithParametersAndRequestBodyTests.fs" />
     <Compile Include="SpecGeneralForNodaTimeTests.fs" />
     <Compile Include="SpecForNodaTimeDateTimeInstantFormatHandlingTests.fs" />
+    <Compile Include="SpecWithValidationTests.fs" />
     <Content Include="RemoveGenerated.ps1" />
     <Content Include="specs\specWithSchemas.yaml" />
     <Content Include="specs\specWithParametersAndRequestBodySchemas.yaml" />
