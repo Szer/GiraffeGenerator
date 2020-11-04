@@ -88,6 +88,9 @@ Example of both:
 ### Generated module name customization
 Defined as parameter `OpenApiModuleName`
 
+### Allowing non-qualified access
+Defined as flag `OpenApiAllowUnqualifiedAccess`
+
 ### NodaTime support
 Enabled by `OpenApiUseNodaTime` flag.
 

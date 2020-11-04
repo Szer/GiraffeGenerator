@@ -275,6 +275,7 @@ let giraffeAst (api: Api) =
     let moduleName = Configuration.value.ModuleName |> Option.defaultValue api.Name
     
     moduleDecl
+        (not Configuration.value.AllowUnqualifiedAccess)
         (xml api.Docs)
         moduleName
         [ openDecl "System.ComponentModel.DataAnnotations"

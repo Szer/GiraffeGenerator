@@ -59,6 +59,7 @@
     <Compile Include="SpecWithValidationExtensibility.fs">
       <OpenApiModuleName>SpecWithValidationExtensibility</OpenApiModuleName>
       <OpenApiSpecFile>specs/specWithValidationExtensibility.yaml</OpenApiSpecFile>
+      <OpenApiAllowUnqualifiedAccess>true</OpenApiAllowUnqualifiedAccess>
     </Compile>
     <None Include="NuGet.Config" />
     <Compile Include="SpecSimpleTests.fs" />

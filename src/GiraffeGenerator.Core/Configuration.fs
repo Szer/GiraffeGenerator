@@ -10,11 +10,13 @@ type DateTimeGeneratedType =
 type Configuration =
     {
         UseNodaTime: bool
+        AllowUnqualifiedAccess: bool
         MapDateTimeInto: DateTimeGeneratedType
         ModuleName: string option
     }
 
 let mutable value =
     { UseNodaTime = false
+      AllowUnqualifiedAccess = false
       MapDateTimeInto = OffsetDateTime
       ModuleName = None }

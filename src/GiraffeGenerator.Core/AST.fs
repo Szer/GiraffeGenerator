@@ -146,10 +146,10 @@ let abstractClassDecl name members =
 
 /// Module declaration with splitting incoming string by '.'
 /// and with [<RequireQualifiedAccess>] attribute
-let moduleDecl xml name decls =
+let moduleDecl requireQualifiedAccess xml name decls =
     let moduleName = longIdent name
 
-    let attrib = [ attr "RequireQualifiedAccess" ]
+    let attrib = [ if requireQualifiedAccess then attr "RequireQualifiedAccess" ]
     SynModuleOrNamespace.SynModuleOrNamespace
         (moduleName, false, SynModuleOrNamespaceKind.NamedModule, decls, xml, attrib, None, r)
 
