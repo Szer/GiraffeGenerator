@@ -139,17 +139,15 @@ let hasMultipleNonBodyParameters method =
 
 let hasErrorsPossible api =
     seq {
-        false, false // default for reduction
         for path in api.Paths do
             for method in path.Methods do
                 if method.BodyParameters.IsSome then
-                    true, true
+                    true
                 elif method.OtherParameters.IsSome then
-                    true,
                     method.OtherParameters.Value
                     |> Map.toSeq
                     |> Seq.exists (fst >> isNotPath)
-    } |> Seq.reduce (fun (validation, other) (v, o) -> validation || v, other || o)
+    } |> Seq.contains true
 
 
 /// generates arbitrary number of nested Result.bind applications
@@ -316,12 +314,11 @@ let giraffeAst (api: Api) =
               }
               |> Map
 
-          let validationErrorsPossible, nonValidationErrorsPossible = hasErrorsPossible api
+          let nonValidationErrorsPossible = hasErrorsPossible api
           
           let allSchemas =
               [
-                if validationErrorsPossible || nonValidationErrorsPossible then
-                    yield! CodeGenErrorsDU.typeSchemas nonValidationErrorsPossible
+                yield! CodeGenErrorsDU.typeSchemas nonValidationErrorsPossible
                 yield! api.Schemas
                 yield! temporarySchemasForBindingBeforeDefaultsAppliance |> Seq.map ^ fun v -> { Kind = v.Generated; Name = v.GeneratedName; Docs = None; DefaultValue = None }
                 for path in api.Paths do
@@ -335,30 +332,19 @@ let giraffeAst (api: Api) =
 
           if not allSchemas.IsEmpty then
               yield! [
-                 let validation =
-                     if not validationErrorsPossible then
-                        None
-                     else
-                        CodeGenValidation.generateModuleLevelDeclarations api |> Some
+                 let validation = CodeGenValidation.generateModuleLevelDeclarations api
                     
-                 let validationTypes =
-                     validation
-                     |> Option.map fst
+                 let validationTypes = fst validation
 
-                 if validationTypes.IsSome then
-                     validationTypes.Value
-                     |> Seq.toList
-                     |> types
+                 types (Seq.toList validationTypes)
                     
                  types (extractRecords allSchemas)
 
-                 if validationErrorsPossible || nonValidationErrorsPossible then
-                     // generate helper functions for error handling
-                     yield! CodeGenErrorsDU.generateHelperFunctions nonValidationErrorsPossible
+                 // generate helper functions for error handling
+                 yield! CodeGenErrorsDU.generateHelperFunctions nonValidationErrorsPossible
                  
-                 let validationFunctions = validation |> Option.map snd
-                 if (validationFunctions.IsSome) then
-                     yield! validationFunctions.Value
+                 let validationFunctions = snd validation
+                 yield! validationFunctions
               ]
 
           abstractClassDecl
