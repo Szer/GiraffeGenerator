@@ -1,8 +1,10 @@
 module CodeGen
 
+open System.Collections.Generic
 open System.Globalization
 open AST
 open ASTExt
+open FSharp.Compiler.XmlDoc
 open OpenApi
 open OpenApiToAstTypesMatchingAndConversion
 open Fantomas
@@ -137,15 +139,17 @@ let hasMultipleNonBodyParameters method =
 
 let hasErrorsPossible api =
     seq {
+        false, false // default for reduction
         for path in api.Paths do
             for method in path.Methods do
                 if method.BodyParameters.IsSome then
-                    true
+                    true, true
                 elif method.OtherParameters.IsSome then
+                    true,
                     method.OtherParameters.Value
                     |> Map.toSeq
                     |> Seq.exists (fst >> isNotPath)
-    } |> Seq.contains true
+    } |> Seq.reduce (fun (validation, other) (v, o) -> validation || v, other || o)
 
 
 /// generates arbitrary number of nested Result.bind applications
@@ -162,12 +166,12 @@ let rec generateBinds bound leftToBind generateFinal =
     if List.length leftToBind > 0 then
         identExpr bound
         ^|> Result.bindExpr
-            ^ lambda ([simplePat bound] |> simplePats)
+            ^ lambda (singleSimplePat bound)
                 ^ generateBinds leftToBind.Head leftToBind.Tail generateFinal
     else
         identExpr bound
             ^|> Result.mapExpr
-                ^ lambda ([simplePat bound] |> simplePats) ^ generateFinal()
+                ^ lambda (singleSimplePat bound) ^ generateFinal()
 
 /// generates mapping from all non-body parameters to combined record
 /// (combined records are described in module generation)
@@ -193,17 +197,93 @@ let generateInputsCombination combinedRecordPropertyToOriginalValue synt (schema
     let onlyNames = bindings |> List.map snd
     generateBinds onlyNames.Head onlyNames.Tail finalGenerator
 
+
+/// extract record definitions from
+let extractRecords (schemas: TypeSchema list) =
+    // store name and fields of records here
+    let recordsDict =
+        Dictionary<string, SynField list * Docs option>()
+    // store name and cases of records here
+    let duDict =
+        Dictionary<string, (string * SynType * PreXmlDoc) list * Docs option>()
+    
+    let rec extractSynType (name: string, kind: TypeKind) =
+        match kind with
+        | Prim primType -> primTypeMatch primType
+        | BuiltIn builtIn -> synType builtIn
+        | Array (innerType, _, _) -> arrayOf (extractSynType (getOwnName innerType (fun () -> name), innerType))
+        | Option innerType -> optionOf (extractSynType (getOwnName innerType (fun () -> name), innerType))
+        | Object objectKind ->
+            let name = getOwnName kind ^ fun _ -> name
+            // extract field types
+            let fields =
+                objectKind.Properties
+                |> List.map (fun (fieldName, fieldKind, def) ->
+                    extractSynType (fieldName, fieldKind)
+                    |> field (CodeGenValidation.getValidationAttributesForProperty fieldKind) fieldName)
+
+            // add name and fields for later
+            if not ^ recordsDict.ContainsKey name then
+                recordsDict.Add(name, (fields, objectKind.Docs))
+
+            // return SynType with record name
+            synType name
+        | DU du ->
+            let cases =
+                du.Cases
+                |> List.mapi
+                   (
+                       fun idx case ->
+                           let name = case.CaseName |> Option.defaultWith (fun _ -> sprintf "Case%d" (idx + 1))
+                           let subtypeName = getOwnName case.Kind (fun _ -> name + "CaseValue")
+                           name,
+                           extractSynType(subtypeName, case.Kind),
+                           xml case.Docs
+                   )
+            if cases.Length > 0 && not ^ duDict.ContainsKey du.Name then
+                duDict.Add(du.Name, (cases, du.Docs))
+            synType name
+        | NoType -> failwith "Field without types are not supported for record schemas"
+
+    // iterate through schemas
+    // records will be stored in dictionary as a side effect
+    for schema in schemas do
+        extractSynType (schema.Name, schema.Kind)
+        |> ignore
+    
+    // create final DU expressions
+    let dus =    
+        duDict
+        |> Seq.map
+        ^ fun (KeyValue(name, (cases, docs))) ->
+            discriminatedUnion (xml docs) name cases
+
+    // create final record expressions
+    let records =
+        recordsDict
+        |> Seq.map
+        ^ fun (KeyValue (name, (fields, docs))) ->
+            let xmlDocs = xml docs
+            record xmlDocs name fields
+    
+    dus
+    |> Seq.append records
+    |> Seq.toList
+
 /// Creating whole module AST for Giraffe webapp
 let giraffeAst (api: Api) =    
     let moduleName = Configuration.value.ModuleName |> Option.defaultValue api.Name
     
     moduleDecl
+        (not Configuration.value.AllowUnqualifiedAccess)
         (xml api.Docs)
         moduleName
-        [ openDecl "FSharp.Control.Tasks.V2.ContextInsensitive"
+        [ openDecl "System.ComponentModel.DataAnnotations"
+          openDecl "FSharp.Control.Tasks.V2.ContextInsensitive"
           openDecl "Giraffe"
           openDecl "System.Threading.Tasks"
           openDecl "Microsoft.AspNetCore.Http"
+          openDecl "Microsoft.Extensions.DependencyInjection"
           
           let temporarySchemasForBindingBeforeDefaultsAppliance =
               [ for path in api.Paths do
@@ -236,26 +316,18 @@ let giraffeAst (api: Api) =
               }
               |> Map
 
-          let errorsPossible = hasErrorsPossible api
+          let validationErrorsPossible, nonValidationErrorsPossible = hasErrorsPossible api
           
           let allSchemas =
               [
-                if errorsPossible then
-                    yield! CodeGenErrorsDU.typeSchemas
+                if validationErrorsPossible || nonValidationErrorsPossible then
+                    yield! CodeGenErrorsDU.typeSchemas nonValidationErrorsPossible
                 yield! api.Schemas
                 yield! temporarySchemasForBindingBeforeDefaultsAppliance |> Seq.map ^ fun v -> { Kind = v.Generated; Name = v.GeneratedName; Docs = None; DefaultValue = None }
                 for path in api.Paths do
                     for method in path.Methods do
-                        
-                        let allParameterSchemas =
-                            let body = method.BodyParameters |> Option.map (Seq.map snd)
-                            let nonBody = method.OtherParameters |> Option.map (Map.toSeq >> Seq.map snd)
-                            Option.map2 Seq.append nonBody body
-                            |> Option.orElse body
-                            |> Option.orElse nonBody  
-                        if allParameterSchemas.IsSome then
-                            for schema in allParameterSchemas.Value do
-                                schema
+                        for schema in method.AllParameters do
+                            schema
                                 
                         if hasMultipleNonBodyParameters method then
                             let name = requestCommonInputTypeName method
@@ -263,11 +335,30 @@ let giraffeAst (api: Api) =
 
           if not allSchemas.IsEmpty then
               yield! [
+                 let validation =
+                     if not validationErrorsPossible then
+                        None
+                     else
+                        CodeGenValidation.generateModuleLevelDeclarations api |> Some
+                    
+                 let validationTypes =
+                     validation
+                     |> Option.map fst
+
+                 if validationTypes.IsSome then
+                     validationTypes.Value
+                     |> Seq.toList
+                     |> types
+                    
                  types (extractRecords allSchemas)
 
-                 // generate helper functions for error handling
-                 if errorsPossible then
-                    yield! CodeGenErrorsDU.generateHelperFunctions()
+                 if validationErrorsPossible || nonValidationErrorsPossible then
+                     // generate helper functions for error handling
+                     yield! CodeGenErrorsDU.generateHelperFunctions nonValidationErrorsPossible
+                 
+                 let validationFunctions = validation |> Option.map snd
+                 if (validationFunctions.IsSome) then
+                     yield! validationFunctions.Value
               ]
 
           abstractClassDecl
@@ -491,6 +582,7 @@ let giraffeAst (api: Api) =
                                             ^|> Result.mapExpr (DefaultsGeneration.generateDefaultMappingFunFromSchema temporarySchemasForBindingBeforeDefaultsApplianceMap v querySchema)
                                         // or just take raw binding if there are no defaults
                                         |> Option.defaultValue bindRaw
+                                        |> CodeGenValidation.bindValidationIntoResult CodeGenErrorsDU.errOuterQuery
                                     // and apply letExpr to generated binding to generate `let queryArgs = bindQuery()`, leaving continuation not applied 
                                     |> Option.map ^ letExpr queryBinding []
                                 
@@ -507,6 +599,7 @@ let giraffeAst (api: Api) =
                                                 let okCall = SynExpr.DotGet(res,r,longIdentWithDots "Ok",r)
                                                 // apply call to pathArgs
                                                 app okCall (identExpr "pathArgs")
+                                                |> CodeGenValidation.bindValidationIntoResult CodeGenErrorsDU.errOuterPath
                                         )
                                     // and apply letExpr to generated binding to generate `let pathArgs = bindPath()`, leaving continuation not applied 
                                     |> Option.map ^ letExpr pathBinding []
@@ -561,7 +654,12 @@ let giraffeAst (api: Api) =
                                                     | v -> failwithf "Content type %A is not supported" v
                                                     |> longIdentExpr
                                                 // add type parameter to the chosen method
-                                                let typeApp = typeApp expr [bodyInputForBindingMapping |> Option.map (fun v -> v.GeneratedName) |> Option.defaultValue bodySchema.Name |> synType]
+                                                let typeApp =
+                                                    let generatedName =
+                                                        bodyInputForBindingMapping
+                                                        |> Option.map (fun v -> v.GeneratedName)
+                                                    let bindingType = extractBodyBindingSynType generatedName bodySchema.Name bodySchema.Kind
+                                                    typeApp expr [bindingType]
                                                 // and call it without arguments
                                                 let call = app typeApp (tupleExpr [])
                                                 // and let-bind it and wrap binding into Result<_,_> 
@@ -574,7 +672,8 @@ let giraffeAst (api: Api) =
                                                         bindRaw
                                                         ^|> Result.mapExpr (DefaultsGeneration.generateDefaultMappingFunFromSchema temporarySchemasForBindingBeforeDefaultsApplianceMap v bodySchema)
                                                     // or leave binding as is otherwise
-                                                    |> Option.defaultValue bindRaw
+                                                    |> Option.defaultValue bindRaw 
+                                                    |> CodeGenValidation.bindValidationIntoResult CodeGenErrorsDU.errOuterBody
                                                 // generate "with" section body of try..with: 
                                                 //   with e -> FormatterBindingException e
                                                 //   |> BodyBindingError

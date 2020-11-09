@@ -1,0 +1,402 @@
+openapi: "3.0.0"
+info:
+  title: Spec with validated arguments
+  version: 1
+paths:
+  /test-validation/{versionEnum}/{stringOfRestrictedToBeBetween3And8Length}:
+    parameters:
+      - name: versionEnum
+        in: path
+        required: true
+        schema:
+          type: integer
+          enum:
+            - 1
+            - 2
+            - 3
+      - name: stringOfRestrictedToBeBetween3And8Length
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 3
+          maxLength: 8
+    post:
+      tags:
+        - search
+      summary: >-
+        Used to test validation
+      operationId: TestValidation
+      parameters:
+        - name: maxLengthRestrictedTo8String
+          schema:
+            type: string
+            maxLength: 8
+          in: query
+          required: true
+        - name: minLengthRestrictedTo3String
+          schema:
+            type: string
+            minLength: 3
+          in: query
+          required: true
+        - name: stringOfDDMMMPattern
+          schema:
+            type: string
+            pattern: ^((3[0-1])|([0-2]?[0-9]))(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov)$
+          in: query
+          required: true
+        - name: stringOfLengthBetween8And64ContainingAGiraffe
+          schema:
+            type: string
+            pattern: giraffe
+            minLength: 8
+            maxLength: 64
+          in: query
+          required: true
+        - name: integerDivisibleBy2
+          schema:
+            type: integer
+            multipleOf: 2
+          in: query
+          required: true
+        - name: integerBetween8And64
+          schema:
+            type: integer
+            minimum: 8
+            maximum: 64
+          in: query
+          required: true
+        - name: integerBetween8And64Exclusive
+          schema:
+            type: integer
+            minimum: 8
+            maximum: 64
+            exclusiveMaximum: true
+          in: query
+          required: true
+        - name: integerBetween8ExclusiveAnd64
+          schema:
+            type: integer
+            minimum: 8
+            exclusiveMinimum: true
+            maximum: 64
+          in: query
+          required: true
+        - name: integerBetween8ExclusiveAnd64Exclusive
+          schema:
+            type: integer
+            minimum: 8
+            exclusiveMinimum: true
+            maximum: 64
+            exclusiveMaximum: true
+          in: query
+          required: true
+        - name: integerGTE8
+          schema:
+            type: integer
+            minimum: 8
+          in: query
+          required: true
+        - name: integerGT8
+          schema:
+            type: integer
+            minimum: 8
+            exclusiveMinimum: true
+          in: query
+          required: true
+        - name: integerLTE64
+          schema:
+            type: integer
+            maximum: 64
+          in: query
+          required: true
+        - name: integerLT64
+          schema:
+            type: integer
+            maximum: 64
+            exclusiveMaximum: true
+          in: query
+          required: true
+        - name: integerEQ64
+          schema:
+            type: integer
+            minimum: 64
+            maximum: 64
+          in: query
+          required: true
+        - name: longEnum
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+            enum:
+              - -9223372036854775808
+              - 0
+              - 9223372036854775807
+        - name: longDivisibleBy2
+          schema:
+            type: integer
+            format: int64
+            multipleOf: 2
+          in: query
+          required: true
+        - name: longBetween8And64
+          schema:
+            type: integer
+            format: int64
+            minimum: 8
+            maximum: 64
+          in: query
+          required: true
+        - name: longBetween8And64Exclusive
+          schema:
+            type: integer
+            format: int64
+            minimum: 8
+            maximum: 64
+            exclusiveMaximum: true
+          in: query
+          required: true
+        - name: longBetween8ExclusiveAnd64
+          schema:
+            type: integer
+            format: int64
+            minimum: 8
+            exclusiveMinimum: true
+            maximum: 64
+          in: query
+          required: true
+        - name: longBetween8ExclusiveAnd64Exclusive
+          schema:
+            type: integer
+            format: int64
+            minimum: 8
+            exclusiveMinimum: true
+            maximum: 64
+            exclusiveMaximum: true
+          in: query
+          required: true
+        - name: longGTE8
+          schema:
+            type: integer
+            format: int64
+            minimum: 8
+          in: query
+          required: true
+        - name: longGT8
+          schema:
+            type: integer
+            format: int64
+            minimum: 8
+            exclusiveMinimum: true
+          in: query
+          required: true
+        - name: longLTE64
+          schema:
+            type: integer
+            format: int64
+            maximum: 64
+          in: query
+          required: true
+        - name: longLT64
+          schema:
+            type: integer
+            format: int64
+            maximum: 64
+            exclusiveMaximum: true
+          in: query
+          required: true
+        - name: longEQ64
+          schema:
+            type: integer
+            format: int64
+            minimum: 64
+            maximum: 64
+          in: query
+          required: true
+        - name: floatEnum
+          in: query
+          required: true
+          schema:
+            type: number
+            enum:
+              - 3.14
+              - 3.141
+              - 3.1415
+              - 3.14159
+              - 3.141592
+        - name: floatBetween8And64
+          schema:
+            type: number
+            minimum: 8
+            maximum: 64
+          in: query
+          required: true
+        - name: floatBetween8And64Exclusive
+          schema:
+            type: number
+            minimum: 8
+            maximum: 64
+            exclusiveMaximum: true
+          in: query
+          required: true
+        - name: floatBetween8ExclusiveAnd64
+          schema:
+            type: number
+            minimum: 8
+            exclusiveMinimum: true
+            maximum: 64
+          in: query
+          required: true
+        - name: floatBetween8ExclusiveAnd64Exclusive
+          schema:
+            type: number
+            minimum: 8
+            exclusiveMinimum: true
+            maximum: 64
+            exclusiveMaximum: true
+          in: query
+          required: true
+        - name: floatGTE8
+          schema:
+            type: number
+            minimum: 8
+          in: query
+          required: true
+        - name: floatGT8
+          schema:
+            type: number
+            minimum: 8
+            exclusiveMinimum: true
+          in: query
+          required: true
+        - name: floatLTE64
+          schema:
+            type: number
+            maximum: 64
+          in: query
+          required: true
+        - name: floatLT64
+          schema:
+            type: number
+            maximum: 64
+            exclusiveMaximum: true
+          in: query
+          required: true
+        - name: floatEQ64
+          schema:
+            type: number
+            minimum: 64
+            maximum: 64
+          in: query
+          required: true
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: array
+              uniqueItems: true
+              items:
+                type: object
+                properties:
+                  arrayOf2To4UniqueItems:
+                    type: array
+                    uniqueItems: true
+                    minItems: 2
+                    maxItems: 4
+                    items:
+                      type: integer
+                  arrayOf2To4Items:
+                    type: array
+                    minItems: 2
+                    maxItems: 4
+                    items:
+                      type: integer
+                  arrayOptionOfMinimum2Items:
+                    type: array
+                    minItems: 2
+                    items:
+                      type: integer
+                  arrayOfMaximum4Items:
+                    type: array
+                    maxItems: 4
+                    items:
+                      type: integer
+                  nestedValidationArrayOfIntGTE2:
+                    type: array
+                    items:
+                      type: integer
+                      minimum: 2
+                  nestedValidationObjectOfIntGTE2:
+                    type: object
+                    properties:
+                      nestedIntGT2:
+                        type: integer
+                        minimum: 2
+                    required:
+                      - nestedIntGT2
+                  nestedValidationOptionOfIntGTE2:
+                    type: integer
+                    minimum: 2
+                  deeplyNestedValidation:
+                    type: array
+                    items:
+                      type: array
+                      uniqueItems: true
+                      maxItems: 2
+                      items:
+                        type: object
+                        properties:
+                          intGTE2ObjectOption:
+                            type: object
+                            properties:
+                              intGTE2Option:
+                                type: integer
+                                minimum: 2
+                required:
+                  - arrayOf2To4UniqueItems
+                  - arrayOf2To4Items
+                  - arrayOfMaximum4Items
+                  - nestedValidationArrayOfIntGTE2
+                  - nestedValidationObjectOfIntGTE2
+      responses:
+        '200':
+          description: object is valid
+          content:
+            application/json:
+              schema:
+                type: string
+        '400':
+          description: object is invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/validationErrorResponse'
+components:
+  schemas:
+    validationErrorResponse:
+      type: object
+      properties:
+        validationErrors:
+          type: array
+          items:
+            type: object
+            properties:
+              location:
+                type: string
+              propertyPath:
+                type: array
+                items:
+                  type: string
+              message:
+                type: string
+            required:
+              - location
+              - propertyPath
+              - message
+        otherErrors:
+          type: string
+      required:
+        - validationErrors

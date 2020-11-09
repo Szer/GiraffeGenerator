@@ -52,6 +52,15 @@
       <OpenApiUseNodaTime>true</OpenApiUseNodaTime>
       <OpenApiSpecFile>specs/specForNodaTimeDateTimeFormatHandling.yaml</OpenApiSpecFile>
     </Compile>
+    <Compile Include="SpecWithValidation.fs">
+      <OpenApiModuleName>SpecWithValidation</OpenApiModuleName>
+      <OpenApiSpecFile>specs/specWithValidation.yaml</OpenApiSpecFile>
+    </Compile>
+    <Compile Include="SpecWithValidationExtensibility.fs">
+      <OpenApiModuleName>SpecWithValidationExtensibility</OpenApiModuleName>
+      <OpenApiSpecFile>specs/specWithValidationExtensibility.yaml</OpenApiSpecFile>
+      <OpenApiAllowUnqualifiedAccess>true</OpenApiAllowUnqualifiedAccess>
+    </Compile>
     <None Include="NuGet.Config" />
     <Compile Include="SpecSimpleTests.fs" />
     <Compile Include="SpecWithSchemasTests.fs" />
@@ -59,12 +68,16 @@
     <Compile Include="SpecWithParametersAndRequestBodyTests.fs" />
     <Compile Include="SpecGeneralForNodaTimeTests.fs" />
     <Compile Include="SpecForNodaTimeDateTimeInstantFormatHandlingTests.fs" />
+    <Compile Include="SpecWithValidationTests.fs" />
+    <Compile Include="SpecWithValidationExtensibilityTests.fs" />
     <Content Include="RemoveGenerated.ps1" />
     <Content Include="specs\specWithSchemas.yaml" />
     <Content Include="specs\specWithParametersAndRequestBodySchemas.yaml" />
     <Content Include="specs\specGeneralForNodaTime.yaml" />
     <Content Include="specs\specForNodaTimeDateTimeFormatHandling.yaml" />
     <Content Include="specs\specWithArguments.yaml" />
+    <Content Include="specs\specWithValidation.yaml" />
+    <Content Include="specs\specWithValidationExtensibility.yaml" />
     <Content Include="specs\specSimple.yaml" />
   </ItemGroup>
 

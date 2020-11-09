@@ -1,6 +1,5 @@
 ﻿module OpenApiToAstTypesMatchingAndConversion
 
-open System.Collections.Generic
 open System.Globalization
 open AST
 open ASTExt
@@ -36,7 +35,7 @@ module XmlDoc =
 /// matching OpenAPI string IR to SynType
 let strFormatDefaultMatch =
     function
-    | StringFormat.String
+    | StringFormat.String _
     | PasswordString -> stringType
     | Byte -> arrayOf byteType
     | Binary -> arrayOf byteType
@@ -85,9 +84,9 @@ let strFormatMatch format =
 let primTypeMatch =
     function
     | Any -> objType
-    | Int -> intType
-    | PrimTypeKind.Long -> int64Type
-    | PrimTypeKind.Double -> doubleType
+    | Int _ -> intType
+    | PrimTypeKind.Long _ -> int64Type
+    | PrimTypeKind.Double _ -> doubleType
     | Bool -> boolType
     | PrimTypeKind.String strFormat -> strFormatMatch strFormat
 
@@ -95,7 +94,7 @@ let primTypeMatch =
 let rec extractResponseSynType externalName =
     function
     | Prim primType -> primTypeMatch primType
-    | Array (innerType, _) -> arrayOf (extractResponseSynType externalName innerType)
+    | Array (innerType, _, _) -> arrayOf (extractResponseSynType externalName innerType)
     | Option innerType -> optionOf (extractResponseSynType externalName innerType)
     | BuiltIn builtIn -> synType builtIn
     | Object { Name = Some name } -> synType name
@@ -109,7 +108,18 @@ let rec extractResponseSynType externalName =
         if fields.IsEmpty then objType else anonRecord fields
     | DU du -> synType du.Name
     | NoType -> unitType
-
+    
+let rec extractBodyBindingSynType defaultTypeName nameFromSchema kind =
+    match defaultTypeName with
+    | None -> extractResponseSynType (Some nameFromSchema) kind
+    | Some generatedName ->
+        let rec extract kind =
+            match kind with
+            | Array (kind, _, _) -> extract kind |> arrayOf
+            | Option kind -> extract kind |> optionOf
+            | Object _ -> synType generatedName
+            | _ -> failwith "no generated name can exist for non-object type"
+        extract kind
 /// Creating AST XML docs from API representation
 let xml: Docs option -> PreXmlDoc =
     function
@@ -126,78 +136,6 @@ let getOwnName kind def =
     | Object o -> o.Name
     | _ -> None
     |> Option.defaultWith def
-
-/// extract record definitions from
-let extractRecords (schemas: TypeSchema list) =
-    // store name and fields of records here
-    let recordsDict =
-        Dictionary<string, SynField list * Docs option>()
-    // store name and cases of records here
-    let duDict =
-        Dictionary<string, (string * SynType * PreXmlDoc) list * Docs option>()
-    
-    let rec extractSynType (name: string, kind: TypeKind) =
-        match kind with
-        | Prim primType -> primTypeMatch primType
-        | BuiltIn builtIn -> synType builtIn
-        | Array (innerType, _) -> arrayOf (extractSynType (getOwnName innerType (fun () -> name), innerType))
-        | Option innerType -> optionOf (extractSynType (getOwnName innerType (fun () -> name), innerType))
-        | Object objectKind ->
-            let name = getOwnName kind ^ fun _ -> name
-            // extract field types
-            let fields =
-                objectKind.Properties
-                |> List.map (fun (fieldName, fieldKind, def) ->
-                    extractSynType (fieldName, fieldKind)
-                    |> field fieldName)
-
-            // add name and fields for later
-            if not ^ recordsDict.ContainsKey name then
-                recordsDict.Add(name, (fields, objectKind.Docs))
-
-            // return SynType with record name
-            synType name
-        | DU du ->
-            let cases =
-                du.Cases
-                |> List.mapi
-                   (
-                       fun idx case ->
-                           let name = case.CaseName |> Option.defaultWith (fun _ -> sprintf "Case%d" (idx + 1))
-                           let subtypeName = getOwnName case.Kind (fun _ -> name + "CaseValue")
-                           name,
-                           extractSynType(subtypeName, case.Kind),
-                           xml case.Docs
-                   )
-            if cases.Length > 0 && not ^ duDict.ContainsKey du.Name then
-                duDict.Add(du.Name, (cases, du.Docs))
-            synType name
-        | NoType -> failwith "Field without types are not supported for record schemas"
-
-    // iterate through schemas
-    // records will be stored in dictionary as a side effect
-    for schema in schemas do
-        extractSynType (schema.Name, schema.Kind)
-        |> ignore
-    
-    // create final DU expressions
-    let dus =    
-        duDict
-        |> Seq.map
-        ^ fun (KeyValue(name, (cases, docs))) ->
-            discriminatedUnion (xml docs) name cases
-
-    // create final record expressions
-    let records =
-        recordsDict
-        |> Seq.map
-        ^ fun (KeyValue (name, (fields, docs))) ->
-            let xmlDocs = xml docs
-            record xmlDocs name fields
-    
-    dus
-    |> Seq.append records
-    |> Seq.toList
     
 [<Struct>]
 type GeneratedOptionalTypeMappingNameKind =
@@ -255,10 +193,10 @@ let rec private generateOptionalTypeInternal kind def nameFromSchema =
         let (hasDef, kind), generated = generateOptionalTypeInternal opt def nameFromSchema
         let kind = if hasDef then kind else opt
         (hasDef, TypeKind.Option kind), generated
-    | TypeKind.Array (item, def) ->
+    | TypeKind.Array (item, def, validation) ->
         let (hasDef, kind), generated = generateOptionalTypeInternal item def nameFromSchema
         let kind = if hasDef then kind else item
-        (hasDef, TypeKind.Array (kind, def)), generated 
+        (hasDef, TypeKind.Array (kind, def, validation)), generated 
     | v ->
       let isDefaultable = Option.isSome def
       let kind = if isDefaultable then TypeKind.Option v else v
@@ -429,7 +367,7 @@ module rec DefaultsGeneration =
                 if hasDefaultProps then
                     true, record
                 else false, indented
-            | TypeKind.Array (item, def) ->
+            | TypeKind.Array (item, def, _) ->
                 let hasDefaults, func = generateBestPossibleFunc item defaultsMap def nameFromSchema
                 if hasDefaults then
                     true, indented ^|> app (longIdentExpr "Array.map") func
@@ -451,7 +389,7 @@ module rec DefaultsGeneration =
     let private generateDefaultMappingFunFromKind defaultsMap kind sourceDef nameFromSchema =
         let param = "src"
         let hasDefaults, recordExpr = generateDefaultMapping defaultsMap kind sourceDef nameFromSchema param
-        hasDefaults, lambda (simplePats [SynSimplePat.Typed(simplePat param, extractResponseSynType (Some nameFromSchema) kind, r)]) recordExpr
+        hasDefaults, lambda (singleTypedPat param <| extractResponseSynType (Some nameFromSchema) kind) recordExpr
 
     let private generateDefaultMappingFunFromMapping defaultsMap sourceDef (mapping: GeneratedOptionalTypeMapping) =
         let param = "src"
@@ -459,7 +397,7 @@ module rec DefaultsGeneration =
         let bindWithTypeAndReturn =
             letExprComplex (SynPat.Typed(SynPat.Named(SynPat.Wild r, ident "v", false, None, r), synType mapping.OriginalName, r))
                 recordExpr (identExpr "v")
-        hasDefaults, lambda (simplePats [SynSimplePat.Typed(simplePat param, synType mapping.GeneratedName, r)]) bindWithTypeAndReturn
+        hasDefaults, lambda (singleTypedPat param <| synType mapping.GeneratedName) bindWithTypeAndReturn
         
     let generateDefaultMappingFunFromSchema defaultsMap mapping (schema: TypeSchema) =
         let hasDefault, fn = generateDefaultMappingFunFromMapping defaultsMap schema.DefaultValue mapping

@@ -7,6 +7,7 @@ open Microsoft.OpenApi.Readers
 open System.IO
 open System.Text.RegularExpressions
 open NodaTime.Text
+open OpenApiValidation
 
 let inline trimLower (s: string) =
     if isNull s then None else
@@ -33,7 +34,7 @@ type Docs =
 /// URI is not standard, but included
 /// It could be anything
 type StringFormat =
-    | String
+    | String of StringValidation option
     | Byte
     | Binary
     | DateString
@@ -41,8 +42,8 @@ type StringFormat =
     | PasswordString
     | Custom of string
     
-    static member Parse (maybeFormat: string Option) =
-        if maybeFormat.IsNone then String else
+    static member Parse schema (maybeFormat: string Option) =
+        if maybeFormat.IsNone then String (StringValidation.TryParse schema) else
         match maybeFormat.Value with
         | "byte" -> Byte
         | "binary" -> Binary
@@ -61,22 +62,22 @@ let (|ArrayKind|ObjectKind|PrimKind|) (schema: OpenApiSchema) =
         
 /// All primitive type kinds for a fields in type definitions
 type PrimTypeKind =
-    | Int
-    | Long
-    | Double
+    | Int of IntValidation option
+    | Long of LongValidation option
+    | Double of FloatValidation option
     | Bool
     | Any
     | String of StringFormat
     
-    static member Parse (typeKind: string, format: string) =
+    static member Parse (typeKind: string, schema: OpenApiSchema) =
         
-        match trimLower typeKind, trimLower format with
-        | Some "integer", Some "int64" -> Long 
-        | Some "integer", _ -> Int
-        | Some "number", _ -> Double
+        match trimLower typeKind, trimLower schema.Format with
+        | Some "integer", Some "int64" -> Long (LongValidation.TryParse schema) 
+        | Some "integer", _ -> Int (IntValidation.TryParse schema)
+        | Some "number", _ -> Double (FloatValidation.TryParse schema)
         | Some "boolean", _ -> Bool
-        | Some "string", maybeStringFormat -> String(StringFormat.Parse maybeStringFormat)
-        | _ -> failwithf "Unexpected type: %s and format: %A" typeKind format
+        | Some "string", maybeStringFormat -> String(StringFormat.Parse schema maybeStringFormat)
+        | _ -> failwithf "Unexpected type: %s and format: %A" typeKind schema.Format
         
     member s.GetDefaultLiteral (value: IOpenApiPrimitive) =
         let fw t = failwithf "%s literal has been found for non-%s type" t t
@@ -128,19 +129,35 @@ type PrimTypeKind =
                 | _ -> None
             | _ -> None
         
+        let inline failIfInvalid validation = failIfInvalid "Default value" validation
+        
         let defaultMatch () =    
             match value with
             | :? OpenApiInteger as int ->
                 match s with
-                | Int -> DefaultableKind.Integer int.Value
-                | Long -> DefaultableKind.Long (int64 int.Value)
+                | Int validation ->
+                    do failIfInvalid validation int.Value
+                    DefaultableKind.Integer int.Value
+                | Long validation ->
+                    let value = int64 int.Value
+                    do failIfInvalid validation value
+                    DefaultableKind.Long value 
                 | _ -> fw "integer"
             | :? OpenApiLong as long ->
                 match s with
-                | Int ->  DefaultableKind.Long (int64 long.Value) 
-                | Long -> DefaultableKind.Long long.Value
+                | Int validation ->
+                    do failIfInvalid validation (int32 long.Value)
+                    DefaultableKind.Long long.Value
+                | Long validation ->
+                    do failIfInvalid validation long.Value
+                    DefaultableKind.Long long.Value
                 | _ -> fw "int64"
-            | :? OpenApiDouble as double -> oneWay Double double DefaultableKind.Double
+            | :? OpenApiDouble as double ->
+                match s with
+                | Double validation ->
+                    do failIfInvalid validation double.Value
+                    DefaultableKind.Double double.Value
+                | _ -> fw "double" 
             | :? OpenApiBoolean as bool -> oneWay Bool bool DefaultableKind.Boolean
             | :? OpenApiDateTime as dateTime -> oneWay (String DateTimeString) dateTime DefaultableKind.DateTime
             | :? OpenApiDate as date -> oneWay (String DateString) date DefaultableKind.Date
@@ -150,8 +167,10 @@ type PrimTypeKind =
                 | String s ->
                     let inline oneWay x = oneWay (String s) x
                     match s with
-                    | PasswordString
-                    | StringFormat.String -> oneWay str DefaultableKind.String
+                    | PasswordString -> oneWay str DefaultableKind.String
+                    | StringFormat.String validation ->
+                        do failIfInvalid validation str.Value
+                        oneWay str DefaultableKind.String
                     | Custom "uri"
                     | Custom "uriref" -> oneWay {| Value = System.Uri str.Value |} DefaultableKind.Uri
                     | Custom "uuid"
@@ -247,7 +266,7 @@ and DUKind =
 /// Array, Option and Object could recursively contains similar types
 and TypeKind =
     | Prim of PrimTypeKind
-    | Array of TypeKind * Option<DefaultableKind>
+    | Array of TypeKind * Option<DefaultableKind> * Option<ArrayValidation>
     | Option of TypeKind
     | Object of ObjectKind
     | DU of DUKind
@@ -263,14 +282,14 @@ and TypeKind =
                     let isObj = match arrItm with | TypeKind.Object _ -> true | _ -> false 
                     if def.IsSome && isObj then
                         failwith "Default values aren't supported for entire objects"
-                    Array (arrItm, def), None
+                    Array (arrItm, def, ArrayValidation.TryParse schema), None
                 | ObjectKind schema ->
                     if schema.Default <> null then
                         failwith "Default values aren't supported for entire objects"
                     else
                         ObjectKind.Create(schema) |> Object, None
                 | PrimKind primType ->
-                    let prim = PrimTypeKind.Parse(primType, schema.Format)
+                    let prim = PrimTypeKind.Parse(primType, schema)
                     let def = schema.Default |> Option.ofObj |> Option.map (fun x -> x:?>IOpenApiPrimitive) |> Option.map (prim.GetDefaultLiteral)
                     Prim prim, def
             if schema.Nullable && def.IsNone then
@@ -350,6 +369,7 @@ type PathMethodCall =
       Responses: Response list
       BodyParameters: (MediaType*TypeSchema) array option
       OtherParameters: Map<PayloadNonBodyLocation, TypeSchema> option
+      AllParameters: TypeSchema array
       Docs: Docs option }
 
 /// Representation of OpenApi path with methods attach
@@ -433,7 +453,7 @@ let parse (doc: OpenApiDocument): Api =
                                 |> Seq.groupBy (fun x -> Option.ofNullable x.In |> Option.defaultValue ParameterLocation.Query |> PayloadNonBodyLocation.FromParameterLocation)
                                 |> Seq.map (fun (location, parameters) ->
                                     location, TypeSchema.Parse(methodName + opName + location.ToString(), parameters))
-                                |> Map
+                                |> Seq.toArray
                             )
 
                     let bodyParameters =
@@ -468,7 +488,15 @@ let parse (doc: OpenApiDocument): Api =
                       Name = opName
                       Responses = responses
                       BodyParameters = bodyParameters
-                      OtherParameters = nonBodyParameters
+                      OtherParameters = nonBodyParameters |> Option.map Map
+                      AllParameters =
+                          let body = bodyParameters |> Option.map (Seq.map snd)
+                          let nonBody = nonBodyParameters |> Option.map (Seq.map snd)
+                          Option.map2 Seq.append body nonBody
+                          |> Option.orElse body
+                          |> Option.orElse nonBody
+                          |> Option.map Seq.toArray
+                          |> Option.defaultValue Array.empty
                       Docs = Docs.Create(op.Description, op.Summary, null) } ]
                 
             yield { Route = route
