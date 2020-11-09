@@ -275,8 +275,8 @@ let private ifThenElseExpr cond ifTrue ifFalse =
 /// if {cond} then {ifTrue} else {ifFalse}
 let ifElseExpr cond ifTrue ifFalse =
     ifThenElseExpr cond ifTrue (Some ifFalse)
-/// If-Then-Else expression
-/// if {cond} then {ifTrue} else {ifFalse}
+/// If-Then expression
+/// if {cond} then {ifTrue}
 let ifExpr cond ifTrue =
     ifThenElseExpr cond ifTrue None
 
