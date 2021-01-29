@@ -32,16 +32,16 @@ jobs:
       run: dotnet tool restore
     
     - name: Dotnet Pack SDK
-      run: dotnet pack src/GiraffeGenerator.Sdk -c Release -o bin/nupkg /p:Version=$VERSION
+      run: dotnet pack src/GiraffeGenerator.Sdk -c Release -o bin/nupkg /p:Version=${{VERSION}}
       
     - name: Dotnet Pack Tool
-      run: dotnet pack src/GiraffeGenerator -c Release -o bin/nupkg /p:Version=$VERSION
+      run: dotnet pack src/GiraffeGenerator -c Release -o bin/nupkg /p:Version=${{VERSION}}
     
     - name: Dotnet Merge Nugets
-      run: dotnet mergenupkg --source bin/nupkg/GiraffeGenerator.Sdk.$VERSION.nupkg --other bin/nupkg/GiraffeGenerator.$VERSION.nupkg --tools --only-files
+      run: dotnet mergenupkg --source bin/nupkg/GiraffeGenerator.Sdk.${{VERSION}}.nupkg --other bin/nupkg/GiraffeGenerator.${{VERSION}}.nupkg --tools --only-files
     
     - name: Dotnet Pack Core
-      run: dotnet pack src/GiraffeGenerator.Core -c Release -o bin/nupkg /p:Version=$VERSION
+      run: dotnet pack src/GiraffeGenerator.Core -c Release -o bin/nupkg /p:Version=${{VERSION}}
       
     - name: Dotnet build Example project
       run: dotnet build src/Example -c Release
