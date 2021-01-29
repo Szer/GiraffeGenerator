@@ -1,6 +1,7 @@
 namespace GiraffeGenerator.IntegrationTests
 
 open System.Net
+open System.Net.Http
 open System.Threading.Tasks
 open FSharp.Control.Tasks.V2.ContextInsensitive
 open System
@@ -17,6 +18,7 @@ type SpecWithTextXmlTests() =
     
     let service =
         { new SpecwithxmlschemasAPI.Service() with
+            member _.PostXmlInput ((i,_)) = Task.FromResult i
             member _.ApplicationJsonInput _ = Task.FromResult "1"
             member _.ApplicationXmlInput _ = Task.FromResult "2"
             member _.TextJsonInput _ = Task.FromResult "3"
@@ -76,6 +78,17 @@ type SpecWithTextXmlTests() =
         let! text = response.Content.ReadAsStringAsync()
         Assert.Equal("""<?xml version="1.0" encoding="utf-8"?>
 <string>4</string>""",text)
+        Assert.Equal(HttpStatusCode.OK ,response.StatusCode)
+    }
+    
+    [<Fact>]
+    let ``POST /postXml -> OK "42"``() = task {
+        use xmlContent = new StringContent("""<?xml version="1.0" encoding="utf-8"?>
+<int>42</int>""", Text.Encoding.UTF8, "application/xml")
+        let! response = client.PostAsync("/postXml", xmlContent)
+        let! text = response.Content.ReadAsStringAsync()
+        Assert.Equal("""<?xml version="1.0" encoding="utf-8"?>
+<int>42</int>""",text)
         Assert.Equal(HttpStatusCode.OK ,response.StatusCode)
     }
     

@@ -3,6 +3,21 @@ info:
   title: Spec with xml schemas API
   version: 1
 paths:
+  /postXml:
+    post:
+      operationId: postXml
+      requestBody:
+        content:
+          application/xml:
+            schema:
+              type: integer
+      responses:
+        '200':
+          description: returns integer
+          content:
+            application/xml:
+              schema:
+                type: integer
   /textJson:
     get:
       operationId: textJson
