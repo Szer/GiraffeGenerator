@@ -13,6 +13,9 @@
     <Compile Include="SpecWithSchemas.fs">
       <OpenApiSpecFile>specs/specWithSchemas.yaml</OpenApiSpecFile>
     </Compile>
+    <Compile Include="SpecWithTextXml.fs">
+      <OpenApiSpecFile>specs/specWithTextXml.yaml</OpenApiSpecFile>
+    </Compile>
     <Compile Include="SpecWithArguments.fs">
       <OpenApiSpecFile>specs/specWithArguments.yaml</OpenApiSpecFile>
     </Compile>
@@ -64,6 +67,7 @@
     <None Include="NuGet.Config" />
     <Compile Include="SpecSimpleTests.fs" />
     <Compile Include="SpecWithSchemasTests.fs" />
+    <Compile Include="SpecWithTextXmlTests.fs" />
     <Compile Include="SpecWithArgumentsTests.fs" />
     <Compile Include="SpecWithParametersAndRequestBodyTests.fs" />
     <Compile Include="SpecGeneralForNodaTimeTests.fs" />
@@ -72,6 +76,7 @@
     <Compile Include="SpecWithValidationExtensibilityTests.fs" />
     <Content Include="RemoveGenerated.ps1" />
     <Content Include="specs\specWithSchemas.yaml" />
+    <Content Include="specs\specWithTextXml.yaml" />
     <Content Include="specs\specWithParametersAndRequestBodySchemas.yaml" />
     <Content Include="specs\specGeneralForNodaTime.yaml" />
     <Content Include="specs\specForNodaTimeDateTimeFormatHandling.yaml" />

@@ -637,7 +637,9 @@ let giraffeAst (api: Api) =
                                                     match contentType with
                                                     | MediaType.Form -> "ctx.BindFormAsync"
                                                     | MediaType.Json -> "ctx.BindJsonAsync"
-                                                    | v -> failwithf "Content type %A is not supported" v
+                                                    | MediaType.Xml -> "ctx.BindXmlAsync"
+                                                    | MediaType.NotSpecified -> failwithf "You must specify media type!"
+                                                    | MediaType.Other ct -> failwithf "Content type %A is not supported" ct
                                                     |> longIdentExpr
                                                 // add type parameter to the chosen method
                                                 let typeApp =
@@ -909,10 +911,12 @@ let giraffeAst (api: Api) =
                                 let contentHandler =
                                     // currently everything goes to json
                                     match response.MediaType with
+                                    | Xml -> "xml"
                                     | Json
-                                    | NotSpecified -> app (identExpr "json" ) (identExpr inputBinding)
-                                    | Form -> app (identExpr "form" ) (identExpr inputBinding)
-                                    | Other x -> failwithf "Emitting of code for media type %s currently not supported" x
+                                    | NotSpecified -> "json"
+                                    | Form -> "form"
+                                    | Other x -> failwithf "Code emitting for media type %s currently not supported" x
+                                    |> fun mediaType -> app (identExpr mediaType) (identExpr inputBinding)
                                 
                                 if response.Code = 200
                                 then
