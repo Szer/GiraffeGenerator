@@ -22,7 +22,7 @@ jobs:
       run: |
         $matches = Select-String -path Directory.build.props '<Version>(\d+\.\d+\.\d+)</Version>'
         $version_local = $matches.Matches[0].Groups[1].Value
-        echo "VERSION=$version_local" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        echo "VERSION=$version_local" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
     - name: Setup .NET Core
       uses: actions/setup-dotnet@v1
