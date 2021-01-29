@@ -21,8 +21,8 @@ jobs:
       shell: pwsh
       run: |
         $matches = Select-String -path Directory.build.props '<Version>(\d+\.\d+\.\d+)</Version>'
-        $version = $matches.Matches[0].Groups[1].Value
-        Write-Host "::set-env name=VERSION::$version"
+        $version_local = $matches.Matches[0].Groups[1].Value
+        echo "VERSION=$version_local" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
     - name: Setup .NET Core
       uses: actions/setup-dotnet@v1

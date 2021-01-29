@@ -1,0 +1,60 @@
+openapi: "3.0.0"
+info:
+  title: Spec with xml schemas API
+  version: 1
+paths:
+  /postXml:
+    post:
+      operationId: postXml
+      requestBody:
+        content:
+          application/xml:
+            schema:
+              type: integer
+      responses:
+        '200':
+          description: returns integer
+          content:
+            application/xml:
+              schema:
+                type: integer
+  /textJson:
+    get:
+      operationId: textJson
+      responses:
+        '200':
+          description: returns string
+          content:
+            text/json:
+              schema:
+                type: string
+  /textXml:
+    get:
+      operationId: textXml
+      responses:
+        '200':
+          description: returns string
+          content:
+            text/xml:
+              schema:
+                type: string
+  /applicationXml:
+    get:
+      operationId: applicationXml
+      responses:
+        '200':
+          description: returns string
+          content:
+            application/xml:
+              schema:
+                type: string
+  /applicationJson:
+    get:
+      operationId: applicationJson
+      responses:
+        '200':
+          description: returns string
+          content:
+            application/json:
+              schema:
+                type: string

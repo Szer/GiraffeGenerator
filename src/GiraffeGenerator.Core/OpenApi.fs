@@ -339,6 +339,7 @@ and TypeSchema =
 /// Supported response media types
 type MediaType =
     | Json
+    | Xml
     | Form
     | NotSpecified
     | Other of string
@@ -400,7 +401,8 @@ let inline private parseCode x =
 
 let inline private parseMediaType x =
     match trimLower x with
-    | Some "application/json" -> Json
+    | Some ("application/json" | "text/json") -> Json
+    | Some ("application/xml" | "text/xml")-> Xml
     | Some "application/x-www-form-urlencoded" -> MediaType.Form
     | Some x -> Other x
     | None -> failwith "Media type can't be null!"
