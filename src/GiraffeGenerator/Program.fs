@@ -24,6 +24,7 @@ type Config =
     | Allow_Unqualified_Access
     | Use_Noda_Time
     | Map_Date_Time_Into of DateTimeGeneratedType
+    | Task_Builder_Namespace of string
     
     interface IArgParserTemplate with
         member this.Usage =
@@ -34,6 +35,7 @@ type Config =
             | Allow_Unqualified_Access -> "Opts-out [<RequireQualifiedAccess>] generation for the module being generated"
             | Use_Noda_Time -> "Opts-in usage of NodaTime types"
             | Map_Date_Time_Into _ -> "Specifies NodaTime type used for date-time OpenAPI format"
+            | Task_Builder_Namespace _ -> "Control the task { } computation expression open statement.\nDefaults to FSharp.Control.Tasks.V2.ContextInsensitive"
 
 let parser = ArgumentParser.Create<Config>("GiraffeGenerator")
 
@@ -52,6 +54,7 @@ let main argv =
         | Allow_Unqualified_Access -> Configuration.value <- { Configuration.value with AllowUnqualifiedAccess = true }
         | Use_Noda_Time -> Configuration.value <- { Configuration.value with UseNodaTime = true }
         | Map_Date_Time_Into kind -> Configuration.value <- { Configuration.value with MapDateTimeInto = kind.ToConfigType() }
+        | Task_Builder_Namespace tbn -> Configuration.value <- { Configuration.value with TaskBuilderNamespace = tbn }
     
     let doc, errors = read inputFile
     if errors <> null && errors.Errors <> null && errors.Errors.Count > 0 then 

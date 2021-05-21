@@ -277,7 +277,7 @@ let giraffeAst (api: Api) =
         (xml api.Docs)
         moduleName
         [ openDecl "System.ComponentModel.DataAnnotations"
-          openDecl "FSharp.Control.Tasks.V2.ContextInsensitive"
+          openDecl Configuration.value.TaskBuilderNamespace
           openDecl "Giraffe"
           openDecl "System.Threading.Tasks"
           openDecl "Microsoft.AspNetCore.Http"
