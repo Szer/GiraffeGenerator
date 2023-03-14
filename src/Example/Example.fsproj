@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
     <OutputType>exe</OutputType>
   </PropertyGroup>
 
@@ -16,7 +16,7 @@
   <ItemGroup>
     <PackageReference Update="FSharp.Core" Version="4.7.2"/>
     <PackageReference Include="Giraffe" Version="4.0.1" />
-    <PackageReference Include="GiraffeGenerator.Sdk" Version="0.3.0" PrivateAssets="all" />
+    <PackageReference Include="GiraffeGenerator.Sdk" Version="0.5.0" PrivateAssets="all" />
   </ItemGroup>
 
 </Project>

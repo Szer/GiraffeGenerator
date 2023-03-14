@@ -27,9 +27,9 @@ paths:
     get:
       operationId: getVersionDetailsv2
       summary: List API version details
-      description: This is even cooler API for listing detail versions
       responses:
         '200':
+          description: This is even cooler API for listing detail versions
           content:
             application/json:
               schema:
@@ -37,6 +37,7 @@ paths:
                   subscriptionId:
                     type: string
         '203':
+          description: This is even cooler API for listing detail versions
           content:
             application/json:
               schema:

@@ -14,7 +14,7 @@ let exampleService =
         member _.ListVersionsv2Input ctx = task {
             return
                 if DateTime.Now.Ticks / 10L % 2L = 0L then
-                    Choice1Of2 { SimpleAPIoverview.dataSetList.apis = [||]; total = 123 }
+                    Choice1Of2 { SimpleAPIoverview.dataSetList.apis = Some [||]; total = Some 123 }
                 else
                     Choice2Of2 true
             }
@@ -22,7 +22,7 @@ let exampleService =
         member _.GetVersionDetailsv2Input ctx = task {
             return
                 if DateTime.Now.Ticks / 10L % 2L = 0L then
-                    Choice1Of2 {| subscriptionId = "hello" |}
+                    Choice1Of2 {| subscriptionId = Some "hello" |}
                 else
                     Choice2Of2 false
             }
