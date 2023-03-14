@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <GiraffeGeneratorSdk_Generator_ExeHost>dotnet </GiraffeGeneratorSdk_Generator_ExeHost>
-        <GiraffeGeneratorSdk_Generator_Exe>$(MSBuildThisFileDirectory)../tools/netcoreapp3.1/any/GiraffeGenerator.dll</GiraffeGeneratorSdk_Generator_Exe>
+        <GiraffeGeneratorSdk_Generator_Exe>$(MSBuildThisFileDirectory)../tools/net6.0/any/GiraffeGenerator.dll</GiraffeGeneratorSdk_Generator_Exe>
     </PropertyGroup>
 
 </Project>  

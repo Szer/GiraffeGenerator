@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
@@ -106,7 +106,7 @@
   <!--  importing manually targets here for testing purposes -->
   <PropertyGroup>
     <GiraffeGeneratorSdk_Generator_ExeHost>dotnet </GiraffeGeneratorSdk_Generator_ExeHost>
-    <GiraffeGeneratorSdk_Generator_Exe>../../src/GiraffeGenerator/bin/$(Configuration)/netcoreapp3.1/GiraffeGenerator.dll</GiraffeGeneratorSdk_Generator_Exe>
+    <GiraffeGeneratorSdk_Generator_Exe>../../src/GiraffeGenerator/bin/$(Configuration)/net6.0/GiraffeGenerator.dll</GiraffeGeneratorSdk_Generator_Exe>
   </PropertyGroup>
   <Import Project="..\..\src\GiraffeGenerator.Sdk\build\GiraffeGenerator.Sdk.targets" />
 
