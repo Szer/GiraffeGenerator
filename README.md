@@ -143,3 +143,22 @@ At this stage there is no NuGet package publishing and packages are being publis
 To consume them in `Example` project there is local `NuGet.Config` with local repo added
 
 After first full `build&pack` you could delete `Generated.fs` file from `Example` project and build it again to see that it actually generates on build
+
+## How to publish
+
+1. Make sure you have nuget API key set in `GIRAFFE_GENERATOR_NUGET` env
+1. Update version in `Directory.build.props`
+1. Put whatever you haven't put into `Unreleased` section of CHANGELOG
+1. Run `./publish.ps1`
+   - It will ask you for random number (as protection from accidental runs)
+   - It will ask you whether you changed the version and updated CHANGELOG
+   - It will parse new version from the `Directory.build.props`
+   - Hard reset with git clean to latest master (stashing and poping props and CHANGELOG)
+   - Run `./build.ps1` (compilation + test)
+   - Check that tag with that version doesn't exist
+   - Check that last version in changelog is lower
+   - Will update CHANGELOG on major and minor (not patch) updates
+     - It will replace `Unreleased` section with new version and will put a date on it
+     - Put link to the bottom section called Changes (as git diff)
+   - Will commit "release vX.Y.Z" with a tag
+   - Will push artifacts to nuget at the end
