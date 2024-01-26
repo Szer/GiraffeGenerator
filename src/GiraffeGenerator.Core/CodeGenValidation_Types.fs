@@ -176,7 +176,7 @@ let rec identifyCustomValidationAttributeType value =
     | BuiltInAttribute _ -> 0
     | SpecialCasedCustomValidationAttribute specialCased ->
         match specialCased with
-        | UniqueItems _ -> 1
+        | UniqueItems -> 1
     | CustomAttribute custom ->
         match custom with
         | LongRange _ -> 2
