@@ -12,8 +12,6 @@ Neither should you, so this library will help you with that
 
 It follows [Myriad](https://github.com/MoiraeSoftware/myriad) approach and defines MSBuild target to generate code based on input
 
-It's still in early stage of development, so mostly basic features are being supported.
-
 ## Example project is available to check [here](https://github.com/Szer/GiraffeGenerator/tree/master/src/Example)
 
 ## Future feature list (basically TODO list):
